@@ -1,18 +1,43 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { AppProvider, useAppData } from '@/context/app-context';
 
-SplashScreen.preventAutoHideAsync();
-
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <AppProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <RootStack />
+        </ThemeProvider>
+      </AppProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootStack() {
+  const { user, loading } = useAppData();
+
+  if (loading) {
+    return null;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="auth/callback" />
+      </Stack.Protected>
+      <Stack.Protected guard={Boolean(user)}>
+        <Stack.Screen name="(app)" />
+        <Stack.Screen name="explore" />
+      </Stack.Protected>
+    </Stack>
   );
 }

@@ -1,0 +1,489 @@
+import { EntryItem } from '@/components/entry-item';
+import { MoneyTheme } from '@/constants/money-theme';
+import { useAppData } from '@/context/app-context';
+import { formatCurrency, getNoteSummary, sortEntries, toPaise } from '@/lib/finance';
+import { openUpiPayment } from '@/lib/upi';
+import { MoneyEntry } from '@/types/finance';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+export default function NoteDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { notes, entries, createEntry, updateEntry, deleteEntry, togglePaidStatus } = useAppData();
+  const note = notes.find((item) => item.id === id);
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [recipientUpiId, setRecipientUpiId] = useState('');
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [formMode, setFormMode] = useState<'create' | 'edit' | 'clone'>('create');
+  const [isFormOpen, setFormOpen] = useState(false);
+  const entryTitleInputRef = useRef<TextInput>(null);
+
+  const noteEntries = useMemo(() => sortEntries(entries.filter((entry) => entry.noteId === id), 'created'), [entries, id]);
+  const summary = useMemo(() => note ? getNoteSummary(note, entries) : null, [entries, note]);
+
+  const resetForm = () => {
+    setTitle('');
+    setAmount('');
+    setRecipientUpiId('');
+    setEditingEntryId(null);
+    setFormMode('create');
+  };
+
+  const openCreateForm = () => {
+    resetForm();
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    resetForm();
+  };
+
+  const handleSubmit = async () => {
+    if (!note) return;
+    const parsedAmount = toPaise(amount);
+
+    if (!title.trim()) {
+      Alert.alert('Title required', 'Enter an item title before saving.');
+      return;
+    }
+    if (parsedAmount <= 0) {
+      Alert.alert('Invalid amount', 'Amount must be greater than zero.');
+      return;
+    }
+
+    const payload: Omit<MoneyEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+      noteId: note.id,
+      title: title.trim(),
+      amountPaise: parsedAmount,
+      recipientUpiId: recipientUpiId.trim() || undefined,
+      category: undefined,
+      dueDate: undefined,
+      description: undefined,
+      status: 'PENDING',
+      paymentReference: undefined,
+      paidAt: undefined,
+    };
+
+    try {
+      if (editingEntryId) {
+        await updateEntry(editingEntryId, payload);
+      } else {
+        await createEntry(payload);
+      }
+      closeForm();
+    } catch (error) {
+      Alert.alert('Save failed', error instanceof Error ? error.message : 'Unknown error');
+    }
+  };
+
+  const handleEditEntry = (entry: MoneyEntry) => {
+    setFormMode('edit');
+    setEditingEntryId(entry.id);
+    setTitle(entry.title);
+    setAmount((entry.amountPaise / 100).toFixed(2));
+    setRecipientUpiId(entry.recipientUpiId ?? '');
+    setFormOpen(true);
+  };
+
+  const handleDeleteEntry = (entryId: string) => {
+    Alert.alert('Delete entry?', 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteEntry(entryId);
+          } catch (error) {
+            Alert.alert('Delete failed', error instanceof Error ? error.message : 'Unknown error');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleCloneEntry = (entry: MoneyEntry) => {
+    setFormMode('clone');
+    setEditingEntryId(null);
+    setTitle(entry.title);
+    setAmount((entry.amountPaise / 100).toFixed(2));
+    setRecipientUpiId(entry.recipientUpiId ?? '');
+    setFormOpen(true);
+  };
+
+  const handlePay = async (entry: MoneyEntry) => {
+    if (entry.amountPaise <= 0) {
+      Alert.alert('Invalid amount', 'Enter a valid amount before paying.');
+      return;
+    }
+
+    const didOpen = await openUpiPayment(entry, note?.title ?? 'Money Tracker');
+    if (!didOpen) {
+      Alert.alert('Could not open payment app', 'Check that Google Pay or another UPI app is installed. The payment remains pending.');
+      return;
+    }
+
+    router.push({ pathname: '/(app)/payment-confirm', params: { entryId: entry.id, returnTo: 'note' } });
+  };
+
+  const handleMarkPaid = async (entry: MoneyEntry) => {
+    await togglePaidStatus(entry.id, true);
+    // Alert.alert('Mark as paid?', `Confirm that ${entry.title} has been paid.`, [
+    //   { text: 'Cancel', style: 'cancel' },
+    //   {
+    //     text: 'Mark paid',
+    //     onPress: async () => {
+    //       try {
+    //         await togglePaidStatus(entry.id, true);
+    //         // Alert.alert('Marked as paid', `${entry.title} is now marked as paid.`);
+    //       } catch (error) {
+    //         Alert.alert('Unable to update payment', error instanceof Error ? error.message : 'Unknown error');
+    //       }
+    //     },
+    //   },
+    // ]);
+  };
+
+  const handleMarkPending = async (entry: MoneyEntry) => {
+    await togglePaidStatus(entry.id, false);
+    // Alert.alert('Revert to pending?', `Mark ${entry.title} as pending again?`, [
+    //   { text: 'Cancel', style: 'cancel' },
+    //   {
+    //     text: 'Mark pending',
+    //     onPress: async () => {
+    //       try {
+    //         await togglePaidStatus(entry.id, false);
+    //         // Alert.alert('Marked as pending', `${entry.title} is pending again.`);
+    //       } catch (error) {
+    //         Alert.alert('Unable to update payment', error instanceof Error ? error.message : 'Unknown error');
+    //       }
+    //     },
+    //   },
+    // ]);
+  };
+
+  if (!note) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>Note not found</Text>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
+      <Stack.Screen options={{ title: note.title }} />
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.summarySection}>
+          <View style={styles.summaryTotalRow}>
+            <View>
+              <Text style={styles.summaryLabel}>Total tracked</Text>
+              <Text style={styles.summaryCount}>{noteEntries.length} items</Text>
+            </View>
+            <Text style={styles.summaryTotal}>{formatCurrency(summary?.totalPaise ?? 0)}</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryMetrics}>
+            {[
+              { label: 'Paid', amountPaise: summary?.paidPaise ?? 0, color: MoneyTheme.paid },
+              { label: 'Pending', amountPaise: summary?.pendingPaise ?? 0, color: MoneyTheme.pending },
+            ].map((metric, index) => (
+              <View key={metric.label} style={[styles.summaryMetric, index > 0 && styles.summaryMetricSeparated]}>
+                <Text style={styles.summaryMetricLabel}>{metric.label}</Text>
+                <Text style={[styles.summaryMetricValue, { color: metric.color }]}>{formatCurrency(metric.amountPaise)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {noteEntries.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No entries in this note yet</Text>
+          </View>
+        ) : (
+          noteEntries.map((entry) => (
+            <EntryItem
+              key={entry.id}
+              entry={entry}
+              onEdit={() => handleEditEntry(entry)}
+              onDelete={() => handleDeleteEntry(entry.id)}
+              onClone={() => handleCloneEntry(entry)}
+              onPay={() => handlePay(entry)}
+              onMarkPaid={() => handleMarkPaid(entry)}
+              onMarkPending={() => handleMarkPending(entry)}
+            />
+          ))
+        )}
+      </ScrollView>
+
+      <Pressable
+        style={styles.floatingButton}
+        onPress={openCreateForm}
+        accessibilityRole="button"
+        accessibilityLabel="Add item"
+      >
+        <Text style={styles.floatingButtonText}>+</Text>
+      </Pressable>
+
+      <Modal
+        visible={isFormOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={closeForm}
+        onShow={() => entryTitleInputRef.current?.focus()}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.formTitle}>
+                {formMode === 'edit' ? 'Edit item' : formMode === 'clone' ? 'Clone item' : 'Add item'}
+              </Text>
+              <Pressable onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close form">
+                <Text style={styles.modalClose}>×</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput ref={entryTitleInputRef} value={title} onChangeText={setTitle} placeholder="Title or item" autoFocus style={styles.input} />
+              <View style={styles.quickAmountRow}>
+                {[500, 1000, 5000].map((preset) => (
+                  <Pressable
+                    key={preset}
+                    style={styles.quickAmountButton}
+                    onPress={() => setAmount(((toPaise(amount) + preset * 100) / 100).toString())}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${preset} rupees to amount`}
+                  >
+                    <Text style={styles.quickAmountText}>+₹{preset.toLocaleString('en-IN')}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <TextInput value={amount} onChangeText={setAmount} placeholder="Amount in ₹" keyboardType="decimal-pad" style={styles.input} />
+              <TextInput value={recipientUpiId} onChangeText={setRecipientUpiId} placeholder="Recipient UPI ID (optional)" style={styles.input} />
+              <View style={styles.formActions}>
+                <Pressable style={styles.secondaryButton} onPress={closeForm}>
+                  <Text style={styles.secondaryText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.primaryButton} onPress={handleSubmit}>
+                  <Text style={styles.primaryText}>
+                    {formMode === 'edit' ? 'Update item' : formMode === 'clone' ? 'Create copy' : 'Add item'}
+                  </Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: MoneyTheme.canvas,
+  },
+  container: {
+    padding: 18,
+    backgroundColor: MoneyTheme.canvas,
+    paddingBottom: 104,
+    gap: 16,
+  },
+  summarySection: {
+    gap: 12,
+    marginBottom: 4,
+  },
+  summaryTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  summaryLabel: {
+    color: MoneyTheme.muted,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  summaryCount: {
+    color: MoneyTheme.quiet,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  summaryTotal: {
+    color: MoneyTheme.ink,
+    fontFamily: 'serif',
+    fontWeight: '600',
+    fontSize: 26,
+    flexShrink: 1,
+  },
+  summaryDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: MoneyTheme.line,
+  },
+  summaryMetrics: {
+    flexDirection: 'row',
+  },
+  summaryMetric: {
+    flex: 1,
+    minWidth: 0,
+  },
+  summaryMetricSeparated: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: MoneyTheme.line,
+    paddingLeft: 12,
+  },
+  summaryMetricLabel: {
+    color: MoneyTheme.muted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  summaryMetricValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  floatingButton: {
+    position: 'absolute',
+    right: 22,
+    bottom: 22,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: MoneyTheme.pine,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: MoneyTheme.ink,
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  floatingButtonText: {
+    color: MoneyTheme.surface,
+    fontSize: 34,
+    fontWeight: '400',
+    lineHeight: 38,
+    marginTop: -2,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: MoneyTheme.overlay,
+    padding: 16,
+  },
+  modalCard: {
+    width: '100%',
+    maxHeight: '90%',
+    backgroundColor: MoneyTheme.surface,
+    borderRadius: 8,
+    padding: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalClose: {
+    color: MoneyTheme.muted,
+    fontSize: 28,
+    lineHeight: 30,
+    paddingHorizontal: 4,
+  },
+  modalContent: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: MoneyTheme.ink,
+    fontFamily: 'serif',
+    marginBottom: 2,
+  },
+  input: {
+    backgroundColor: MoneyTheme.canvas,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  quickAmountRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickAmountButton: {
+    flex: 1,
+    minWidth: 76,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+    borderRadius: 5,
+    backgroundColor: MoneyTheme.surfaceSoft,
+  },
+  quickAmountText: {
+    color: MoneyTheme.ink,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  formActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 8,
+  },
+  primaryButton: {
+    backgroundColor: MoneyTheme.pine,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 5,
+  },
+  primaryText: {
+    color: MoneyTheme.surface,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    backgroundColor: MoneyTheme.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 5,
+  },
+  secondaryText: {
+    color: MoneyTheme.ink,
+    fontWeight: '700',
+  },
+  emptyState: {
+    backgroundColor: MoneyTheme.surface,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: MoneyTheme.muted,
+    fontWeight: '600',
+    fontSize: 18,
+  },
+});
