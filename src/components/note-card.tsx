@@ -10,23 +10,37 @@ interface NoteCardProps {
   onEdit: () => void;
   onClone: () => void;
   onDelete: () => void;
+  onLongPress: () => void;
+  selected: boolean;
+  selectionMode: boolean;
 }
 
-export function NoteCard({ note, entries, onPress, onEdit, onClone, onDelete }: NoteCardProps) {
+export function NoteCard({ note, entries, onPress, onEdit, onClone, onDelete, onLongPress, selected, selectionMode }: NoteCardProps) {
   const summary = getNoteSummary(note, entries);
 
   return (
-    <Pressable onPress={onPress} style={styles.card}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={[styles.card, selected && styles.selectedCard]}>
       <View style={styles.headerRow}>
         <View style={styles.titleWrap}>
           <Text style={styles.title}>{note.title}</Text>
           <Text style={styles.meta}>{summary.entryCount} entries</Text>
         </View>
-        <View style={styles.miniActions}>
-          <Text onPress={onEdit} style={styles.pill}>Edit</Text>
-          <Text onPress={onClone} style={styles.pill}>Clone</Text>
-          <Text onPress={onDelete} style={[styles.pill, styles.danger]}>Delete</Text>
-        </View>
+        {selectionMode ? (
+          <View style={[styles.selectionIndicator, selected && styles.selectionIndicatorSelected]}>
+            {selected && <Text style={styles.selectionCheck}>✓</Text>}
+          </View>
+        ) : (
+          <View style={styles.miniActions}>
+            <Text onPress={onEdit} style={styles.pill}>Edit</Text>
+            <Text onPress={onClone} style={styles.pill}>Clone</Text>
+            <Text onPress={onDelete} style={[styles.pill, styles.danger]}>Delete</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.total}>{formatCurrency(summary.totalPaise)}</Text>
       <View style={styles.row}>
@@ -64,6 +78,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
   },
+  selectedCard: {
+    borderColor: MoneyTheme.pine,
+    backgroundColor: MoneyTheme.surfaceSoft,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -85,6 +103,24 @@ const styles = StyleSheet.create({
   miniActions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  selectionIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: MoneyTheme.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectionIndicatorSelected: {
+    backgroundColor: MoneyTheme.pine,
+    borderColor: MoneyTheme.pine,
+  },
+  selectionCheck: {
+    color: MoneyTheme.surface,
+    fontSize: 15,
+    fontWeight: '700',
   },
   pill: {
     color: MoneyTheme.ink,

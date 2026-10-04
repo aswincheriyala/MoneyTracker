@@ -7,13 +7,16 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, St
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
-  const { notes, entries, user, createNote, updateNote, deleteNote, cloneNote } = useAppData();
+  const { notes, entries, user, createNote, updateNote, deleteNote, deleteNotes, cloneNote } = useAppData();
   const [query, setQuery] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
   const [isComposerOpen, setComposerOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [cloningNoteId, setCloningNoteId] = useState<string | null>(null);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(() => new Set());
+  const [isDeletingSelected, setDeletingSelected] = useState(false);
   const titleInputRef = useRef<TextInput>(null);
+  const selectionMode = selectedNoteIds.size > 0;
 
   const filteredNotes = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -84,6 +87,51 @@ export default function HomeScreen() {
     ]);
   };
 
+  const toggleNoteSelection = (noteId: string) => {
+    setSelectedNoteIds((current) => {
+      const next = new Set(current);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
+  };
+
+  const startNoteSelection = (noteId: string) => {
+    setSelectedNoteIds((current) => new Set(current).add(noteId));
+  };
+
+  const handleNotePress = (noteId: string) => {
+    if (selectionMode) {
+      toggleNoteSelection(noteId);
+      return;
+    }
+    router.push({ pathname: '/(app)/notes/[id]', params: { id: noteId } });
+  };
+
+  const handleDeleteSelected = () => {
+    const noteIds = [...selectedNoteIds];
+    if (noteIds.length === 0 || isDeletingSelected) return;
+
+    Alert.alert('Delete selected notes?', `Delete ${noteIds.length} notes and all their entries?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setDeletingSelected(true);
+          try {
+            await deleteNotes(noteIds);
+            setSelectedNoteIds(new Set());
+          } catch (error) {
+            Alert.alert('Delete failed', error instanceof Error ? error.message : 'Unknown error');
+          } finally {
+            setDeletingSelected(false);
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -109,6 +157,21 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {selectionMode && (
+          <View style={styles.selectionToolbar}>
+            <Text style={styles.selectionCount}>{selectedNoteIds.size} selected</Text>
+            <Pressable onPress={() => setSelectedNoteIds(new Set())} disabled={isDeletingSelected}>
+              <Text style={styles.cancelSelectionText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.deleteSelectedButton, isDeletingSelected && styles.deleteSelectedButtonDisabled]}
+              onPress={handleDeleteSelected}
+              disabled={isDeletingSelected}>
+              <Text style={styles.deleteSelectedText}>{isDeletingSelected ? 'Deleting…' : 'Delete'}</Text>
+            </Pressable>
+          </View>
+        )}
+
         {filteredNotes.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>{hasSearchQuery ? 'No search results' : 'No notes yet'}</Text>
@@ -127,7 +190,10 @@ export default function HomeScreen() {
               key={note.id}
               note={note}
               entries={entries}
-              onPress={() => router.push({ pathname: '/(app)/notes/[id]', params: { id: note.id } })}
+              onPress={() => handleNotePress(note.id)}
+              onLongPress={() => startNoteSelection(note.id)}
+              selected={selectedNoteIds.has(note.id)}
+              selectionMode={selectionMode}
               onEdit={() => handleEditNote(note.id, note.title)}
               onClone={() => handleCloneNote(note.id)}
               onDelete={() => handleDeleteNote(note.id)}
@@ -224,6 +290,40 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
     marginBottom: 16,
+  },
+  selectionToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 12,
+    marginBottom: 14,
+    backgroundColor: MoneyTheme.surface,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+    borderRadius: 6,
+  },
+  selectionCount: {
+    flex: 1,
+    color: MoneyTheme.ink,
+    fontWeight: '700',
+  },
+  cancelSelectionText: {
+    color: MoneyTheme.muted,
+    fontWeight: '600',
+    paddingVertical: 8,
+  },
+  deleteSelectedButton: {
+    backgroundColor: MoneyTheme.danger,
+    borderRadius: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  deleteSelectedButtonDisabled: {
+    opacity: 0.55,
+  },
+  deleteSelectedText: {
+    color: MoneyTheme.surface,
+    fontWeight: '700',
   },
   searchInput: {
     flex: 1,

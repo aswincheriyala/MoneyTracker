@@ -199,6 +199,7 @@ interface AppContextValue {
   createNote: (title: string) => Promise<MoneyNote>;
   updateNote: (noteId: string, title: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
+  deleteNotes: (noteIds: string[]) => Promise<void>;
   cloneNote: (noteId: string, title?: string) => Promise<MoneyNote>;
   createEntry: (entry: Omit<MoneyEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<MoneyEntry>;
   updateEntry: (entryId: string, changes: Partial<MoneyEntry>) => Promise<void>;
@@ -387,23 +388,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [saveLocalData, user]);
 
-  const deleteNote = useCallback(async (noteId: string) => {
+  const deleteNotes = useCallback(async (noteIds: string[]) => {
     if (!user) {
       throw new Error('Sign in to continue.');
     }
+    const selectedIds = new Set(noteIds);
+    if (selectedIds.size === 0) return;
     const current = dataRef.current;
-    if (!current.notes.some((note) => note.id === noteId)) throw new Error('Note not found.');
+    const removedNotes = current.notes.filter((note) => selectedIds.has(note.id));
+    if (removedNotes.length !== selectedIds.size) throw new Error('One or more notes could not be found.');
     const timestamp = new Date().toISOString();
-    const removedEntries = current.entries.filter((entry) => entry.noteId === noteId);
+    const removedEntries = current.entries.filter((entry) => selectedIds.has(entry.noteId));
     const changes: PendingChange[] = removedEntries.map((entry) => ({ id: makeId(), kind: 'delete-entry', entryId: entry.id, deletedAt: timestamp }));
-    changes.push({ id: makeId(), kind: 'delete-note', noteId, deletedAt: timestamp });
+    changes.push(...removedNotes.map((note) => ({ id: makeId(), kind: 'delete-note' as const, noteId: note.id, deletedAt: timestamp })));
     await saveLocalData({
       ...current,
-      notes: current.notes.filter((note) => note.id !== noteId),
-      entries: current.entries.filter((entry) => entry.noteId !== noteId),
+      notes: current.notes.filter((note) => !selectedIds.has(note.id)),
+      entries: current.entries.filter((entry) => !selectedIds.has(entry.noteId)),
       changes: [...current.changes, ...changes],
     });
   }, [saveLocalData, user]);
+
+  const deleteNote = useCallback(async (noteId: string) => {
+    await deleteNotes([noteId]);
+  }, [deleteNotes]);
 
   const cloneNote = useCallback(async (noteId: string, title?: string) => {
     const current = dataRef.current;
@@ -591,6 +599,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createNote,
       updateNote,
       deleteNote,
+      deleteNotes,
       cloneNote,
       createEntry,
       updateEntry,
@@ -601,7 +610,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       syncData,
     }),
-    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, entries, lastSyncedAt, loading, notes, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
+    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, deleteNotes, entries, lastSyncedAt, loading, notes, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
