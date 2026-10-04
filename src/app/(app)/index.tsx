@@ -20,6 +20,7 @@ export default function HomeScreen() {
     const base = notes.filter((note) => (lower ? note.title.toLowerCase().includes(lower) : true));
     return base.sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt));
   }, [notes, query]);
+  const hasSearchQuery = query.trim().length > 0;
 
   const openComposer = (noteId?: string, title?: string, sourceNoteId?: string) => {
     setEditingNoteId(noteId ?? null);
@@ -110,11 +111,15 @@ export default function HomeScreen() {
 
         {filteredNotes.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No notes yet</Text>
-            <Text style={styles.emptyBody}>Create your first note to track monthly expenses, recurring bills, or investment goals.</Text>
-            <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
-              <Text style={styles.primaryText}>Create note</Text>
-            </Pressable>
+            <Text style={styles.emptyTitle}>{hasSearchQuery ? 'No search results' : 'No notes yet'}</Text>
+            {!hasSearchQuery && (
+              <>
+                <Text style={styles.emptyBody}>Create your first note to track monthly expenses, recurring bills, or investment goals.</Text>
+                <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
+                  <Text style={styles.primaryText}>Create note</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         ) : (
           filteredNotes.map((note) => (
