@@ -15,7 +15,7 @@ export default function AppLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#edf1e9' } }}>
-      <Stack.Screen name="index" />
+      {/* <Stack.Screen name="index" /> */}
       <Stack.Screen
         name="notes/[id]"
         options={{
@@ -33,6 +33,7 @@ export default function AppLayout() {
         options={{
           headerShown: true,
           title: 'Profile',
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: '#edf1e9' },
           headerTintColor: '#183d32',
           headerTitleStyle: { fontFamily: 'serif' },
@@ -44,6 +45,7 @@ export default function AppLayout() {
         options={{
           headerShown: true,
           title: 'Confirm payment',
+          headerBackButtonDisplayMode: 'minimal',
           headerStyle: { backgroundColor: '#edf1e9' },
           headerTintColor: '#183d32',
           headerTitleStyle: { fontFamily: 'serif' },

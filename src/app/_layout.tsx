@@ -29,14 +29,13 @@ function RootStack() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
+      {/* <Stack.Screen name="index" /> */}
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="auth/callback" />
       </Stack.Protected>
       <Stack.Protected guard={Boolean(user)}>
         <Stack.Screen name="(app)" />
-        <Stack.Screen name="explore" />
       </Stack.Protected>
     </Stack>
   );
