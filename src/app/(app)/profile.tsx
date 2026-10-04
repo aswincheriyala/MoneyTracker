@@ -6,15 +6,13 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
-  const { user, notes, entries, signOut, syncData, syncing, lastSyncedAt } = useAppData();
+  const { user, notes, entries, signOut, syncData, syncing, lastSyncedAt, pendingChangeCount } = useAppData();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const totalNotes = notes.length;
   const sumTracked = notes.reduce((acc, note) => acc + getNoteSummary(note, entries).totalPaise, 0);
 
-  const handleSignOut = async () => {
-    if (isSigningOut || syncing) return;
-
+  const performSignOut = async () => {
     setIsSigningOut(true);
     try {
       await signOut();
@@ -23,6 +21,29 @@ export default function ProfileScreen() {
       Alert.alert('Sign-out failed', error instanceof Error ? error.message : 'Unknown error');
       setIsSigningOut(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    if (isSigningOut || syncing) return;
+
+    if (pendingChangeCount > 0) {
+      Alert.alert(
+        'Unsynced changes',
+        `You have ${pendingChangeCount} unsynced changes. Signing out removes this device's data and will permanently discard them. Sync first?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sync now', onPress: () => void handleSync() },
+          {
+            text: 'Discard & sign out',
+            style: 'destructive',
+            onPress: () => void performSignOut(),
+          },
+        ],
+      );
+      return;
+    }
+
+    await performSignOut();
   };
 
   const handleSync = async () => {

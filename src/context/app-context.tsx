@@ -196,6 +196,7 @@ interface AppContextValue {
   loading: boolean;
   syncing: boolean;
   lastSyncedAt?: string;
+  pendingChangeCount: number;
   createNote: (title: string) => Promise<MoneyNote>;
   updateNote: (noteId: string, title: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
@@ -220,6 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string>();
+  const [pendingChangeCount, setPendingChangeCount] = useState(0);
   const dataRef = useRef<LocalData>(emptyLocalData());
   const syncInProgressRef = useRef(false);
 
@@ -228,6 +230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotes(nextData.notes);
     setEntries(nextData.entries);
     setLastSyncedAt(nextData.lastSyncedAt);
+    setPendingChangeCount(nextData.changes.length);
     if (user) {
       await AsyncStorage.setItem(accountStorageKey(user.id), JSON.stringify(nextData));
     }
@@ -317,6 +320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               setNotes(loadedData.notes ?? []);
               setEntries(loadedData.entries ?? []);
               setLastSyncedAt(loadedData.lastSyncedAt);
+              setPendingChangeCount(dataRef.current.changes.length);
               setUser(appUser);
             }
           }
@@ -569,7 +573,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dataRef.current = { ...loadedData, changes: loadedData.changes ?? [] };
       setNotes(loadedData.notes ?? []);
       setEntries(loadedData.entries ?? []);
-      setLastSyncedAt(loadedData.lastSyncedAt);
+      setPendingChangeCount(dataRef.current.changes.length);
       setUser(appUser);
     }
   }, []);
@@ -578,15 +582,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (syncInProgressRef.current) {
       throw new Error('Wait for sync to finish before signing out.');
     }
+    const signingOutUserId = user?.id;
     if (supabase) {
       await signOutUser();
+    }
+    if (signingOutUserId) {
+      await AsyncStorage.removeItem(accountStorageKey(signingOutUserId));
     }
     setUser(null);
     dataRef.current = emptyLocalData();
     setNotes([]);
     setEntries([]);
     setLastSyncedAt(undefined);
-  }, []);
+    setPendingChangeCount(0);
+  }, [user]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -596,6 +605,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loading,
       syncing,
       lastSyncedAt,
+      pendingChangeCount,
       createNote,
       updateNote,
       deleteNote,
@@ -610,7 +620,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       syncData,
     }),
-    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, deleteNotes, entries, lastSyncedAt, loading, notes, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
+    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, deleteNotes, entries, lastSyncedAt, loading, notes, pendingChangeCount, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
