@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { signInWithGoogle, signOutUser, supabase } from '@/lib/supabase';
 import { AppUser, EntryStatus, MoneyEntry, MoneyNote } from '@/types/finance';
 
-const STORAGE_KEY = 'moneytracker:data:v1';
+const STORAGE_KEY = 'moneytracker:data:v2';
+const LEGACY_STORAGE_KEY = 'moneytracker:data:v1';
 
 type SupabaseNote = {
   id: string;
@@ -30,6 +31,134 @@ type SupabaseEntry = {
   created_at: string;
   updated_at: string;
 };
+
+type PendingChange =
+  | { id: string; kind: 'upsert-note'; note: MoneyNote }
+  | { id: string; kind: 'delete-note'; noteId: string; deletedAt: string }
+  | { id: string; kind: 'upsert-entry'; entry: MoneyEntry }
+  | { id: string; kind: 'delete-entry'; entryId: string; deletedAt: string };
+
+type LocalData = {
+  notes: MoneyNote[];
+  entries: MoneyEntry[];
+  changes: PendingChange[];
+  lastSyncedAt?: string;
+};
+
+const emptyLocalData = (): LocalData => ({ notes: [], entries: [], changes: [] });
+
+function makeId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+  });
+}
+
+function noteToSupabase(note: MoneyNote) {
+  return {
+    id: note.id,
+    user_id: note.userId,
+    title: note.title,
+    created_at: note.createdAt,
+    updated_at: note.updatedAt,
+  };
+}
+
+function entryToSupabase(entry: MoneyEntry) {
+  return {
+    id: entry.id,
+    user_id: entry.userId,
+    note_id: entry.noteId,
+    title: entry.title,
+    amount_paise: entry.amountPaise,
+    category: entry.category ?? null,
+    recipient_upi_id: entry.recipientUpiId ?? null,
+    due_date: entry.dueDate ?? null,
+    description: entry.description ?? null,
+    status: entry.status,
+    paid_at: entry.paidAt ?? null,
+    payment_reference: entry.paymentReference ?? null,
+    created_at: entry.createdAt,
+    updated_at: entry.updatedAt,
+  };
+}
+
+function accountStorageKey(userId: string): string {
+  return `${STORAGE_KEY}:${userId}`;
+}
+
+async function readRemoteData(userId: string): Promise<{ notes: MoneyNote[]; entries: MoneyEntry[] }> {
+  if (!supabase) throw new Error('Supabase is not configured.');
+
+  const { data: noteData, error: noteError } = await supabase
+    .from('money_notes')
+    .select('*')
+    .eq('user_id', userId);
+  if (noteError) throw noteError;
+
+  const { data: entryData, error: entryError } = await supabase
+    .from('money_entries')
+    .select('*')
+    .eq('user_id', userId);
+  if (entryError) throw entryError;
+
+  return {
+    notes: (noteData ?? []).map(mapSupabaseNote),
+    entries: (entryData ?? []).map(mapSupabaseEntry),
+  };
+}
+
+async function syncLocalData(userId: string, localData: LocalData): Promise<{ notes: MoneyNote[]; entries: MoneyEntry[] }> {
+  if (!supabase) throw new Error('Supabase is not configured.');
+
+  const remoteData = await readRemoteData(userId);
+  const remoteNotes = new Map(remoteData.notes.map((note) => [note.id, note]));
+  const remoteEntries = new Map(remoteData.entries.map((entry) => [entry.id, entry]));
+  const latestChanges = new Map<string, PendingChange>();
+  for (const change of localData.changes) {
+    const entityId = 'note' in change ? change.note.id
+      : 'noteId' in change ? change.noteId
+        : 'entry' in change ? change.entry.id
+          : change.entryId;
+    latestChanges.set(`${change.kind.includes('note') ? 'note' : 'entry'}:${entityId}`, change);
+  }
+
+  const noteUpserts = [...latestChanges.values()].filter((change): change is Extract<PendingChange, { kind: 'upsert-note' }> => change.kind === 'upsert-note');
+  const entryUpserts = [...latestChanges.values()].filter((change): change is Extract<PendingChange, { kind: 'upsert-entry' }> => change.kind === 'upsert-entry');
+  const entryDeletes = [...latestChanges.values()].filter((change): change is Extract<PendingChange, { kind: 'delete-entry' }> => change.kind === 'delete-entry');
+  const noteDeletes = [...latestChanges.values()].filter((change): change is Extract<PendingChange, { kind: 'delete-note' }> => change.kind === 'delete-note');
+
+  for (const { note } of noteUpserts) {
+    const serverNote = remoteNotes.get(note.id);
+    if (!serverNote || note.updatedAt >= serverNote.updatedAt) {
+      const { error } = await supabase.from('money_notes').upsert(noteToSupabase(note));
+      if (error) throw error;
+    }
+  }
+  for (const { entry } of entryUpserts) {
+    const serverEntry = remoteEntries.get(entry.id);
+    if (!serverEntry || entry.updatedAt >= serverEntry.updatedAt) {
+      const { error } = await supabase.from('money_entries').upsert(entryToSupabase(entry));
+      if (error) throw error;
+    }
+  }
+  for (const change of entryDeletes) {
+    const serverEntry = remoteEntries.get(change.entryId);
+    if (!serverEntry || change.deletedAt >= serverEntry.updatedAt) {
+      const { error } = await supabase.from('money_entries').delete().eq('id', change.entryId).eq('user_id', userId);
+      if (error) throw error;
+    }
+  }
+  for (const change of noteDeletes) {
+    const serverNote = remoteNotes.get(change.noteId);
+    if (!serverNote || change.deletedAt >= serverNote.updatedAt) {
+      const { error } = await supabase.from('money_notes').delete().eq('id', change.noteId).eq('user_id', userId);
+      if (error) throw error;
+    }
+  }
+
+  return readRemoteData(userId);
+}
 
 function mapSupabaseNote(note: SupabaseNote): MoneyNote {
   return {
@@ -65,6 +194,8 @@ interface AppContextValue {
   notes: MoneyNote[];
   entries: MoneyEntry[];
   loading: boolean;
+  syncing: boolean;
+  lastSyncedAt?: string;
   createNote: (title: string) => Promise<MoneyNote>;
   updateNote: (noteId: string, title: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
@@ -76,7 +207,7 @@ interface AppContextValue {
   togglePaidStatus: (entryId: string, confirmed: boolean, paymentReference?: string) => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
-  refreshData: () => Promise<void>;
+  syncData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -86,63 +217,72 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notes, setNotes] = useState<MoneyNote[]>([]);
   const [entries, setEntries] = useState<MoneyEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string>();
+  const dataRef = useRef<LocalData>(emptyLocalData());
+  const syncInProgressRef = useRef(false);
 
-  const persistLocalData = useCallback(async (nextNotes: MoneyNote[], nextEntries: MoneyEntry[]) => {
-    await AsyncStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        notes: nextNotes,
-        entries: nextEntries,
-      }),
-    );
-  }, []);
-
-  const fetchUserData = useCallback(async (userId: string) => {
-    if (!supabase) {
-      throw new Error('Supabase is not configured.');
+  const saveLocalData = useCallback(async (nextData: LocalData) => {
+    dataRef.current = nextData;
+    setNotes(nextData.notes);
+    setEntries(nextData.entries);
+    setLastSyncedAt(nextData.lastSyncedAt);
+    if (user) {
+      await AsyncStorage.setItem(accountStorageKey(user.id), JSON.stringify(nextData));
     }
+  }, [user]);
 
-    const { data: noteData, error: noteError } = await supabase
-      .from('money_notes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
-    if (noteError) throw noteError;
+  const syncData = useCallback(async () => {
+    if (!user) throw new Error('Sign in to sync your data.');
+    if (syncInProgressRef.current) throw new Error('A sync is already in progress.');
 
-    const { data: entryData, error: entryError } = await supabase
-      .from('money_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false });
-    if (entryError) throw entryError;
+    syncInProgressRef.current = true;
+    setSyncing(true);
+    const startingData = dataRef.current;
+    const startingChangeIds = new Set(startingData.changes.map((change) => change.id));
+    try {
+      const remoteData = await syncLocalData(user.id, startingData);
+      const latestData = dataRef.current;
+      const remainingChanges = latestData.changes.filter((change) => !startingChangeIds.has(change.id));
+      const pendingNoteIds = new Set<string>();
+      const pendingEntryIds = new Set<string>();
+      const deletedNoteIds = new Set<string>();
+      const deletedEntryIds = new Set<string>();
+      for (const change of remainingChanges) {
+        if ('note' in change) pendingNoteIds.add(change.note.id);
+        else if ('noteId' in change) {
+          pendingNoteIds.add(change.noteId);
+          deletedNoteIds.add(change.noteId);
+        } else if ('entry' in change) pendingEntryIds.add(change.entry.id);
+        else {
+          pendingEntryIds.add(change.entryId);
+          deletedEntryIds.add(change.entryId);
+        }
+      }
 
-    const loadedNotes = (noteData ?? []).map(mapSupabaseNote);
-    const loadedEntries = (entryData ?? []).map(mapSupabaseEntry);
-    await persistLocalData(loadedNotes, loadedEntries);
-    return { notes: loadedNotes, entries: loadedEntries };
-  }, [persistLocalData]);
+      const noteMap = new Map(remoteData.notes.map((note) => [note.id, note]));
+      const entryMap = new Map(remoteData.entries.map((entry) => [entry.id, entry]));
+      for (const note of latestData.notes) {
+        if (pendingNoteIds.has(note.id)) noteMap.set(note.id, note);
+      }
+      for (const entry of latestData.entries) {
+        if (pendingEntryIds.has(entry.id)) entryMap.set(entry.id, entry);
+      }
+      for (const noteId of deletedNoteIds) noteMap.delete(noteId);
+      for (const entryId of deletedEntryIds) entryMap.delete(entryId);
 
-  const refreshData = useCallback(async () => {
-    if (!user) {
-      setNotes([]);
-      setEntries([]);
-      return;
+      const nextData: LocalData = {
+        notes: [...noteMap.values()],
+        entries: [...entryMap.values()],
+        changes: remainingChanges,
+        lastSyncedAt: new Date().toISOString(),
+      };
+      await saveLocalData(nextData);
+    } finally {
+      syncInProgressRef.current = false;
+      setSyncing(false);
     }
-
-    if (supabase) {
-      const loadedData = await fetchUserData(user.id);
-      setNotes(loadedData.notes);
-      setEntries(loadedData.entries);
-      return;
-    }
-
-    const stored = await AsyncStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as { notes?: MoneyNote[]; entries?: MoneyEntry[] };
-      setNotes(parsed.notes ?? []);
-      setEntries(parsed.entries ?? []);
-    }
-  }, [fetchUserData, user]);
+  }, [saveLocalData, user]);
 
   useEffect(() => {
     let active = true;
@@ -159,11 +299,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               displayName: activeUser.user_metadata?.full_name ?? activeUser.email ?? 'User',
               avatarUrl: activeUser.user_metadata?.avatar_url,
             };
-            setUser(appUser);
-            const loadedData = await fetchUserData(appUser.id);
+            let stored = await AsyncStorage.getItem(accountStorageKey(appUser.id));
+            if (!stored) {
+              const legacyStored = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+              if (legacyStored) {
+                const legacyData = JSON.parse(legacyStored) as Pick<LocalData, 'notes' | 'entries'>;
+                const migratedData = { ...emptyLocalData(), ...legacyData };
+                stored = JSON.stringify(migratedData);
+                await AsyncStorage.setItem(accountStorageKey(appUser.id), stored);
+                await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+              }
+            }
+            const loadedData = stored ? JSON.parse(stored) as LocalData : emptyLocalData();
             if (active) {
-              setNotes(loadedData.notes);
-              setEntries(loadedData.entries);
+              dataRef.current = { ...loadedData, changes: loadedData.changes ?? [] };
+              setNotes(loadedData.notes ?? []);
+              setEntries(loadedData.entries ?? []);
+              setLastSyncedAt(loadedData.lastSyncedAt);
+              setUser(appUser);
             }
           }
         }
@@ -179,251 +332,197 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [fetchUserData]);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(22, 0, 0, 0);
+    const syncedAfterNightlyTime = lastSyncedAt && new Date(lastSyncedAt) >= target;
+    if (!lastSyncedAt) target.setTime(now.getTime());
+    else if (syncedAfterNightlyTime) target.setDate(target.getDate() + 1);
+    const syncDelay = target <= now ? 0 : target.getTime() - now.getTime();
+    const timeout = setTimeout(() => {
+      void syncData().catch((error) => console.warn('Scheduled data sync failed', error));
+    }, syncDelay);
+    return () => clearTimeout(timeout);
+  }, [lastSyncedAt, syncData, user]);
 
   const createNote = useCallback(async (title: string) => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       throw new Error('Please provide a note title.');
     }
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data, error } = await supabase
-      .from('money_notes')
-      .insert({ user_id: user.id, title: trimmedTitle })
-      .select('*')
-      .single();
-    if (error) throw error;
-
-    const note = mapSupabaseNote(data);
-
-    const nextNotes = [note, ...notes];
-    setNotes(nextNotes);
-    await persistLocalData(nextNotes, entries);
+    const timestamp = new Date().toISOString();
+    const note: MoneyNote = { id: makeId(), userId: user.id, title: trimmedTitle, createdAt: timestamp, updatedAt: timestamp };
+    const current = dataRef.current;
+    await saveLocalData({
+      ...current,
+      notes: [note, ...current.notes],
+      changes: [...current.changes, { id: makeId(), kind: 'upsert-note', note }],
+    });
     return note;
-  }, [entries, notes, persistLocalData, user]);
+  }, [saveLocalData, user]);
 
   const updateNote = useCallback(async (noteId: string, title: string) => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       throw new Error('Note title cannot be empty.');
     }
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data, error } = await supabase
-      .from('money_notes')
-      .update({ title: trimmedTitle })
-      .eq('id', noteId)
-      .eq('user_id', user.id)
-      .select('*')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Note not found.');
-
-    const updatedNote = mapSupabaseNote(data);
-    const nextNotes = notes.map((note) => note.id === noteId ? updatedNote : note);
-    setNotes(nextNotes);
-    await persistLocalData(nextNotes, entries);
-  }, [entries, notes, persistLocalData, user]);
+    const current = dataRef.current;
+    const existing = current.notes.find((note) => note.id === noteId);
+    if (!existing) throw new Error('Note not found.');
+    const note = { ...existing, title: trimmedTitle, updatedAt: new Date().toISOString() };
+    await saveLocalData({
+      ...current,
+      notes: current.notes.map((item) => item.id === noteId ? note : item),
+      changes: [...current.changes, { id: makeId(), kind: 'upsert-note', note }],
+    });
+  }, [saveLocalData, user]);
 
   const deleteNote = useCallback(async (noteId: string) => {
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data, error } = await supabase
-      .from('money_notes')
-      .delete()
-      .eq('id', noteId)
-      .eq('user_id', user.id)
-      .select('id')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Note not found.');
-
-    const nextNotes = notes.filter((note) => note.id !== noteId);
-    const nextEntries = entries.filter((entry) => entry.noteId !== noteId);
-    setNotes(nextNotes);
-    setEntries(nextEntries);
-    await persistLocalData(nextNotes, nextEntries);
-  }, [entries, notes, persistLocalData, user]);
+    const current = dataRef.current;
+    if (!current.notes.some((note) => note.id === noteId)) throw new Error('Note not found.');
+    const timestamp = new Date().toISOString();
+    const removedEntries = current.entries.filter((entry) => entry.noteId === noteId);
+    const changes: PendingChange[] = removedEntries.map((entry) => ({ id: makeId(), kind: 'delete-entry', entryId: entry.id, deletedAt: timestamp }));
+    changes.push({ id: makeId(), kind: 'delete-note', noteId, deletedAt: timestamp });
+    await saveLocalData({
+      ...current,
+      notes: current.notes.filter((note) => note.id !== noteId),
+      entries: current.entries.filter((entry) => entry.noteId !== noteId),
+      changes: [...current.changes, ...changes],
+    });
+  }, [saveLocalData, user]);
 
   const cloneNote = useCallback(async (noteId: string, title?: string) => {
-    const original = notes.find((note) => note.id === noteId);
+    const current = dataRef.current;
+    const original = current.notes.find((note) => note.id === noteId);
     if (!original) {
       throw new Error('Note not found.');
     }
 
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data: noteData, error: noteError } = await supabase
-      .from('money_notes')
-      .insert({ user_id: user.id, title: title?.trim() || `${original.title} Copy` })
-      .select('*')
-      .single();
-    if (noteError) throw noteError;
-
-    const newNote = mapSupabaseNote(noteData);
-
-    const matchingEntries = entries.filter((entry) => entry.noteId === noteId);
-    let clonedEntries: MoneyEntry[] = [];
-    if (matchingEntries.length > 0) {
-      const { data: entryData, error: entryError } = await supabase
-        .from('money_entries')
-        .insert(matchingEntries.map((entry) => ({
-          user_id: user.id,
-          note_id: newNote.id,
-          title: entry.title,
-          amount_paise: entry.amountPaise,
-          category: entry.category ?? null,
-          recipient_upi_id: entry.recipientUpiId ?? null,
-          due_date: entry.dueDate ?? null,
-          description: entry.description ?? null,
-          status: 'PENDING',
-        })))
-        .select('*');
-      if (entryError) {
-        await supabase.from('money_notes').delete().eq('id', newNote.id).eq('user_id', user.id);
-        throw entryError;
-      }
-      clonedEntries = (entryData ?? []).map(mapSupabaseEntry);
-    }
-
-    const nextNotes = [newNote, ...notes];
-    const nextEntries = [...clonedEntries, ...entries];
-    setNotes(nextNotes);
-    setEntries(nextEntries);
-    await persistLocalData(nextNotes, nextEntries);
+    const timestamp = new Date().toISOString();
+    const newNote: MoneyNote = {
+      id: makeId(), userId: user.id, title: title?.trim() || `${original.title} Copy`, createdAt: timestamp, updatedAt: timestamp,
+    };
+    const clonedEntries = current.entries.filter((entry) => entry.noteId === noteId).map((entry): MoneyEntry => ({
+      ...entry,
+      id: makeId(),
+      noteId: newNote.id,
+      status: 'PENDING',
+      paidAt: undefined,
+      paymentReference: undefined,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }));
+    await saveLocalData({
+      ...current,
+      notes: [newNote, ...current.notes],
+      entries: [...clonedEntries, ...current.entries],
+      changes: [
+        ...current.changes,
+        { id: makeId(), kind: 'upsert-note', note: newNote },
+        ...clonedEntries.map((entry) => ({ id: makeId(), kind: 'upsert-entry' as const, entry })),
+      ],
+    });
     return newNote;
-  }, [entries, notes, persistLocalData, user]);
+  }, [saveLocalData, user]);
 
   const createEntry = useCallback(async (entry: Omit<MoneyEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => {
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data, error } = await supabase
-      .from('money_entries')
-      .insert({
-        user_id: user.id,
-        note_id: entry.noteId,
-        title: entry.title,
-        amount_paise: entry.amountPaise,
-        category: entry.category ?? null,
-        recipient_upi_id: entry.recipientUpiId ?? null,
-        due_date: entry.dueDate ?? null,
-        description: entry.description ?? null,
-        status: entry.status,
-        paid_at: entry.paidAt ?? null,
-        payment_reference: entry.paymentReference ?? null,
-      })
-      .select('*')
-      .single();
-    if (error) throw error;
-
-    const nextEntry = mapSupabaseEntry(data);
-
-    const nextEntries = [nextEntry, ...entries];
-    setEntries(nextEntries);
-    await persistLocalData(notes, nextEntries);
+    const timestamp = new Date().toISOString();
+    const nextEntry: MoneyEntry = { ...entry, id: makeId(), userId: user.id, createdAt: timestamp, updatedAt: timestamp };
+    const current = dataRef.current;
+    await saveLocalData({
+      ...current,
+      entries: [nextEntry, ...current.entries],
+      changes: [...current.changes, { id: makeId(), kind: 'upsert-entry', entry: nextEntry }],
+    });
     return nextEntry;
-  }, [entries, notes, persistLocalData, user]);
+  }, [saveLocalData, user]);
 
   const updateEntry = useCallback(async (entryId: string, changes: Partial<MoneyEntry>) => {
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const rowChanges: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if ('noteId' in changes) rowChanges.note_id = changes.noteId;
-    if ('title' in changes) rowChanges.title = changes.title;
-    if ('amountPaise' in changes) rowChanges.amount_paise = changes.amountPaise;
-    if ('category' in changes) rowChanges.category = changes.category ?? null;
-    if ('recipientUpiId' in changes) rowChanges.recipient_upi_id = changes.recipientUpiId ?? null;
-    if ('dueDate' in changes) rowChanges.due_date = changes.dueDate ?? null;
-    if ('description' in changes) rowChanges.description = changes.description ?? null;
-    if ('status' in changes) rowChanges.status = changes.status;
-    if ('paidAt' in changes) rowChanges.paid_at = changes.paidAt ?? null;
-    if ('paymentReference' in changes) rowChanges.payment_reference = changes.paymentReference ?? null;
-
-    const { data, error } = await supabase
-      .from('money_entries')
-      .update(rowChanges)
-      .eq('id', entryId)
-      .eq('user_id', user.id)
-      .select('*')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Entry not found.');
-
-    const updatedEntry = mapSupabaseEntry(data);
-    const nextEntries: MoneyEntry[] = entries.map((entry) => entry.id === entryId ? updatedEntry : entry);
-    setEntries(nextEntries);
-    await persistLocalData(notes, nextEntries);
-  }, [entries, notes, persistLocalData, user]);
+    const current = dataRef.current;
+    const existing = current.entries.find((entry) => entry.id === entryId);
+    if (!existing) throw new Error('Entry not found.');
+    const updatedEntry = {
+      ...existing,
+      ...changes,
+      id: existing.id,
+      userId: existing.userId,
+      createdAt: existing.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+    await saveLocalData({
+      ...current,
+      entries: current.entries.map((entry) => entry.id === entryId ? updatedEntry : entry),
+      changes: [...current.changes, { id: makeId(), kind: 'upsert-entry', entry: updatedEntry }],
+    });
+  }, [saveLocalData, user]);
 
   const deleteEntry = useCallback(async (entryId: string) => {
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data, error } = await supabase
-      .from('money_entries')
-      .delete()
-      .eq('id', entryId)
-      .eq('user_id', user.id)
-      .select('id')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Entry not found.');
-
-    const nextEntries = entries.filter((entry) => entry.id !== entryId);
-    setEntries(nextEntries);
-    await persistLocalData(notes, nextEntries);
-  }, [entries, notes, persistLocalData, user]);
+    const current = dataRef.current;
+    if (!current.entries.some((entry) => entry.id === entryId)) throw new Error('Entry not found.');
+    const change: PendingChange = { id: makeId(), kind: 'delete-entry', entryId, deletedAt: new Date().toISOString() };
+    await saveLocalData({
+      ...current,
+      entries: current.entries.filter((entry) => entry.id !== entryId),
+      changes: [...current.changes, change],
+    });
+  }, [saveLocalData, user]);
 
   const cloneEntry = useCallback(async (entryId: string) => {
-    const original = entries.find((entry) => entry.id === entryId);
+    const original = dataRef.current.entries.find((entry) => entry.id === entryId);
     if (!original) {
       throw new Error('Entry not found.');
     }
-    if (!supabase || !user) {
+    if (!user) {
       throw new Error('Sign in to continue.');
     }
-
-    const { data, error } = await supabase
-      .from('money_entries')
-      .insert({
-        user_id: user.id,
-        note_id: original.noteId,
-        title: original.title,
-        amount_paise: original.amountPaise,
-        category: original.category ?? null,
-        recipient_upi_id: original.recipientUpiId ?? null,
-        due_date: original.dueDate ?? null,
-        description: original.description ?? null,
-        status: 'PENDING',
-      })
-      .select('*')
-      .single();
-    if (error) throw error;
-
-    const cloned = mapSupabaseEntry(data);
-
-    const nextEntries = [cloned, ...entries];
-    setEntries(nextEntries);
-    await persistLocalData(notes, nextEntries);
+    const timestamp = new Date().toISOString();
+    const cloned: MoneyEntry = {
+      ...original,
+      id: makeId(),
+      status: 'PENDING',
+      paidAt: undefined,
+      paymentReference: undefined,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const current = dataRef.current;
+    await saveLocalData({
+      ...current,
+      entries: [cloned, ...current.entries],
+      changes: [...current.changes, { id: makeId(), kind: 'upsert-entry', entry: cloned }],
+    });
     return cloned;
-  }, [entries, notes, persistLocalData, user]);
+  }, [saveLocalData, user]);
 
   const togglePaidStatus = useCallback(async (entryId: string, confirmed: boolean, paymentReference?: string) => {
-    const currentEntry = entries.find((entry) => entry.id === entryId);
+    const current = dataRef.current;
+    const currentEntry = current.entries.find((entry) => entry.id === entryId);
     if (!currentEntry) {
       throw new Error('Entry not found.');
     }
@@ -432,40 +531,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const paidAt = confirmed ? updatedAt : undefined;
     const nextStatus = confirmed ? 'PAID' : 'PENDING';
 
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('money_entries')
-        .update({
-          status: nextStatus,
-          paid_at: paidAt ?? null,
-          payment_reference: confirmed ? paymentReference ?? currentEntry.paymentReference ?? null : null,
-          updated_at: updatedAt,
-        })
-        .eq('id', entryId)
-        .eq('user_id', currentEntry.userId)
-        .select('id')
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) throw new Error('Entry could not be updated.');
-    }
-
-    const nextEntries: MoneyEntry[] = entries.map((entry) => {
-      if (entry.id !== entryId) return entry;
-      if (!confirmed) {
-        return { ...entry, status: 'PENDING' as const, paidAt: undefined, paymentReference: undefined, updatedAt };
-      }
-      return {
-        ...entry,
-        status: 'PAID' as const,
-        paidAt: updatedAt,
-        paymentReference: paymentReference ?? entry.paymentReference,
-        updatedAt,
-      };
+    const updatedEntry: MoneyEntry = {
+      ...currentEntry,
+      status: nextStatus,
+      paidAt,
+      paymentReference: confirmed ? paymentReference ?? currentEntry.paymentReference : undefined,
+      updatedAt,
+    };
+    await saveLocalData({
+      ...current,
+      entries: current.entries.map((entry) => entry.id === entryId ? updatedEntry : entry),
+      changes: [...current.changes, { id: makeId(), kind: 'upsert-entry', entry: updatedEntry }],
     });
-    setEntries(nextEntries);
-    await persistLocalData(notes, nextEntries);
-  }, [entries, notes, persistLocalData]);
+  }, [saveLocalData]);
 
   const signIn = useCallback(async () => {
     await signInWithGoogle();
@@ -478,21 +556,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         displayName: sessionUser.user_metadata?.full_name ?? sessionUser.email ?? 'User',
         avatarUrl: sessionUser.user_metadata?.avatar_url,
       };
+      const stored = await AsyncStorage.getItem(accountStorageKey(appUser.id));
+      const loadedData = stored ? JSON.parse(stored) as LocalData : emptyLocalData();
+      dataRef.current = { ...loadedData, changes: loadedData.changes ?? [] };
+      setNotes(loadedData.notes ?? []);
+      setEntries(loadedData.entries ?? []);
+      setLastSyncedAt(loadedData.lastSyncedAt);
       setUser(appUser);
-      const loadedData = await fetchUserData(appUser.id);
-      setNotes(loadedData.notes);
-      setEntries(loadedData.entries);
     }
-  }, [fetchUserData]);
+  }, []);
 
   const signOut = useCallback(async () => {
+    if (syncInProgressRef.current) {
+      throw new Error('Wait for sync to finish before signing out.');
+    }
     if (supabase) {
       await signOutUser();
     }
     setUser(null);
+    dataRef.current = emptyLocalData();
     setNotes([]);
     setEntries([]);
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    setLastSyncedAt(undefined);
   }, []);
 
   const value = useMemo<AppContextValue>(
@@ -501,6 +586,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notes,
       entries,
       loading,
+      syncing,
+      lastSyncedAt,
       createNote,
       updateNote,
       deleteNote,
@@ -512,9 +599,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       togglePaidStatus,
       signIn,
       signOut,
-      refreshData,
+      syncData,
     }),
-    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, entries, loading, notes, refreshData, signIn, signOut, togglePaidStatus, updateEntry, updateNote, user],
+    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, entries, lastSyncedAt, loading, notes, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

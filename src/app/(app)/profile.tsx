@@ -6,14 +6,14 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
-  const { user, notes, entries, signOut } = useAppData();
+  const { user, notes, entries, signOut, syncData, syncing, lastSyncedAt } = useAppData();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const totalNotes = notes.length;
   const sumTracked = notes.reduce((acc, note) => acc + getNoteSummary(note, entries).totalPaise, 0);
 
   const handleSignOut = async () => {
-    if (isSigningOut) return;
+    if (isSigningOut || syncing) return;
 
     setIsSigningOut(true);
     try {
@@ -24,6 +24,19 @@ export default function ProfileScreen() {
       setIsSigningOut(false);
     }
   };
+
+  const handleSync = async () => {
+    try {
+      await syncData();
+      Alert.alert('Sync complete', 'Your data is up to date.');
+    } catch (error) {
+      Alert.alert('Sync failed', error instanceof Error ? error.message : 'Unable to sync right now.');
+    }
+  };
+
+  const syncStatus = lastSyncedAt
+    ? `Last synced ${new Date(lastSyncedAt).toLocaleString()}`
+    : 'Not synced yet';
 
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
@@ -47,7 +60,17 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.signOutButton} onPress={handleSignOut} disabled={isSigningOut}>
+        <View style={styles.syncSection}>
+          <View style={styles.syncCopy}>
+            <Text style={styles.syncTitle}>Data sync</Text>
+            <Text style={styles.syncStatus}>{syncStatus} · automatic after 10:00 PM while the app is open</Text>
+          </View>
+          <Pressable style={styles.syncButton} onPress={handleSync} disabled={syncing}>
+            <Text style={styles.syncButtonText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
+          </Pressable>
+        </View>
+
+        <Pressable style={styles.signOutButton} onPress={handleSignOut} disabled={isSigningOut || syncing}>
           <Text style={styles.signOutText}>{isSigningOut ? 'Signing out…' : 'Sign out'}</Text>
         </Pressable>
       </ScrollView>
@@ -101,6 +124,37 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 12,
+  },
+  syncSection: {
+    backgroundColor: '#fbfcf8',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d4dbd0',
+    padding: 16,
+    gap: 14,
+  },
+  syncCopy: {
+    gap: 5,
+  },
+  syncTitle: {
+    color: '#183d32',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  syncStatus: {
+    color: '#69776d',
+    fontSize: 13,
+  },
+  syncButton: {
+    backgroundColor: '#183d32',
+    borderRadius: 5,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  syncButtonText: {
+    color: '#fbfcf8',
+    fontWeight: '700',
+    fontSize: 15,
   },
   statBox: {
     flex: 1,
