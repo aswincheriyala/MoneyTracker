@@ -195,6 +195,7 @@ interface AppContextValue {
   entries: MoneyEntry[];
   loading: boolean;
   syncing: boolean;
+  initialSyncing: boolean;
   lastSyncedAt?: string;
   pendingChangeCount: number;
   createNote: (title: string) => Promise<MoneyNote>;
@@ -222,10 +223,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [entries, setEntries] = useState<MoneyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [initialSyncing, setInitialSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string>();
   const [pendingChangeCount, setPendingChangeCount] = useState(0);
   const dataRef = useRef<LocalData>(emptyLocalData());
   const syncInProgressRef = useRef(false);
+  const initialSyncDoneRef = useRef(false);
 
   const saveLocalData = useCallback(async (nextData: LocalData) => {
     dataRef.current = nextData;
@@ -240,7 +243,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const syncData = useCallback(async () => {
     if (!user) throw new Error('Sign in to sync your data.');
-    if (syncInProgressRef.current) throw new Error('A sync is already in progress.');
+    if (syncInProgressRef.current) return;
 
     syncInProgressRef.current = true;
     setSyncing(true);
@@ -342,13 +345,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!user || initialSyncDoneRef.current) return;
+    initialSyncDoneRef.current = true;
+    setInitialSyncing(true);
+    void syncData()
+      .catch((error) => console.warn('Initial data sync failed', error))
+      .finally(() => setInitialSyncing(false));
+  }, [syncData, user]);
+
+  useEffect(() => {
     if (!user) return;
     const now = new Date();
     const target = new Date(now);
     target.setHours(22, 0, 0, 0);
     const syncedAfterNightlyTime = lastSyncedAt && new Date(lastSyncedAt) >= target;
-    if (!lastSyncedAt) target.setTime(now.getTime());
-    else if (syncedAfterNightlyTime) target.setDate(target.getDate() + 1);
+    if (!lastSyncedAt) return;
+    if (syncedAfterNightlyTime) target.setDate(target.getDate() + 1);
     const syncDelay = target <= now ? 0 : target.getTime() - now.getTime();
     const timeout = setTimeout(() => {
       void syncData().catch((error) => console.warn('Scheduled data sync failed', error));
@@ -628,6 +640,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setEntries([]);
     setLastSyncedAt(undefined);
     setPendingChangeCount(0);
+    initialSyncDoneRef.current = false;
   }, [user]);
 
   const value = useMemo<AppContextValue>(
@@ -637,6 +650,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       entries,
       loading,
       syncing,
+      initialSyncing,
       lastSyncedAt,
       pendingChangeCount,
       createNote,
@@ -655,7 +669,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signOut,
       syncData,
     }),
-    [createEntry, createNote, cloneEntry, cloneNote, deleteEntries, deleteEntry, deleteNote, deleteNotes, entries, lastSyncedAt, loading, notes, pendingChangeCount, setEntriesPaidStatus, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
+    [createEntry, createNote, cloneEntry, cloneNote, deleteEntries, deleteEntry, deleteNote, deleteNotes, entries, initialSyncing, lastSyncedAt, loading, notes, pendingChangeCount, setEntriesPaidStatus, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

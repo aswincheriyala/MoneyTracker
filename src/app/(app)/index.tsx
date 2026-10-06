@@ -1,5 +1,6 @@
 import { AnimatedModal } from '@/components/animated-modal';
 import { NoteCard } from '@/components/note-card';
+import { SyncLoader } from '@/components/sync-loader';
 import { MoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { router } from 'expo-router';
@@ -8,7 +9,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
-  const { notes, entries, user, createNote, updateNote, deleteNote, deleteNotes, cloneNote } = useAppData();
+  const { notes, entries, user, initialSyncing, createNote, updateNote, deleteNote, deleteNotes, cloneNote } = useAppData();
   const [query, setQuery] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
   const [isComposerOpen, setComposerOpen] = useState(false);
@@ -174,6 +175,11 @@ export default function HomeScreen() {
         )}
 
         {filteredNotes.length === 0 ? (
+          initialSyncing && !hasSearchQuery ? (
+            <View style={styles.emptyState}>
+              <SyncLoader />
+            </View>
+          ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>{hasSearchQuery ? 'No search results' : 'No notes yet'}</Text>
             {!hasSearchQuery && (
@@ -185,6 +191,7 @@ export default function HomeScreen() {
               </>
             )}
           </View>
+          )
         ) : (
           filteredNotes.map((note) => (
             <NoteCard
