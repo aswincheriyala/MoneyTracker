@@ -1,7 +1,7 @@
 import { AnimatedModal } from '@/components/animated-modal';
 import { NoteCard } from '@/components/note-card';
 import { SyncLoader } from '@/components/sync-loader';
-import { MoneyTheme } from '@/constants/money-theme';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,6 +9,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { notes, entries, user, initialSyncing, createNote, updateNote, deleteNote, deleteNotes, cloneNote } = useAppData();
   const [query, setQuery] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
@@ -152,6 +154,7 @@ export default function HomeScreen() {
             value={query}
             onChangeText={setQuery}
             placeholder="Search notes"
+            placeholderTextColor={theme.quiet}
             style={styles.searchInput}
           />
           <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
@@ -236,6 +239,8 @@ type NoteComposerProps = {
 };
 
 function NoteComposer({ visible, title, isEditing, isCloning, inputRef, onChangeTitle, onClose, onSubmit }: NoteComposerProps) {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   useEffect(() => {
     if (!visible) return;
     const focusTimer = setTimeout(() => inputRef.current?.focus(), 120);
@@ -257,6 +262,7 @@ function NoteComposer({ visible, title, isEditing, isCloning, inputRef, onChange
           value={title}
           onChangeText={onChangeTitle}
           placeholder="Note title"
+          placeholderTextColor={theme.quiet}
           style={styles.modalInput}
         />
       </ScrollView>
@@ -274,10 +280,10 @@ function NoteComposer({ visible, title, isEditing, isCloning, inputRef, onChange
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
   },
   content: {
     padding: 22,
@@ -291,7 +297,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   eyebrow: {
-    color: MoneyTheme.clay,
+    color: theme.clay,
     fontSize: 12,
     textTransform: 'uppercase',
     fontWeight: '700',
@@ -300,19 +306,19 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '600',
     fontFamily: 'serif',
-    color: MoneyTheme.ink,
+    color: theme.ink,
     marginTop: 4,
   },
   profileButton: {
     width: 44,
     height: 44,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     borderRadius: 5,
     justifyContent: 'center',
     alignItems: 'center',
   },
   profileText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
     fontSize: 16,
   },
@@ -328,23 +334,23 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 12,
     marginBottom: 14,
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     borderRadius: 6,
   },
   selectionCount: {
     flex: 1,
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '700',
   },
   cancelSelectionText: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontWeight: '600',
     paddingVertical: 8,
   },
   deleteSelectedButton: {
-    backgroundColor: MoneyTheme.danger,
+    backgroundColor: theme.danger,
     borderRadius: 5,
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -353,34 +359,35 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   deleteSelectedText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
   },
   searchInput: {
     flex: 1,
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 6,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
+    color: theme.ink,
   },
   primaryButton: {
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 5,
   },
   primaryText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
   },
   emptyState: {
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     padding: 30,
     alignItems: 'center',
     justifyContent: 'center',
@@ -390,11 +397,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: 'serif',
     fontWeight: '600',
-    color: MoneyTheme.ink,
+    color: theme.ink,
   },
   emptyBody: {
     textAlign: 'center',
-    color: MoneyTheme.muted,
+    color: theme.muted,
     lineHeight: 22,
   },
   modalScroll: {
@@ -407,16 +414,17 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     fontFamily: 'serif',
-    color: MoneyTheme.ink,
+    color: theme.ink,
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
-    backgroundColor: MoneyTheme.canvas,
+    borderColor: theme.line,
+    backgroundColor: theme.canvas,
     borderRadius: 5,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
+    color: theme.ink,
   },
   modalActions: {
     flexDirection: 'row',
@@ -427,20 +435,20 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
   },
   modalSecondaryText: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '700',
   },
   modalPrimary: {
     borderRadius: 5,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
   },
   modalPrimaryText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
   },
 });

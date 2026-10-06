@@ -1,6 +1,7 @@
-import { MoneyTheme } from '@/constants/money-theme';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { formatCurrency, getNoteSummary } from '@/lib/finance';
 import { MoneyEntry, MoneyNote } from '@/types/finance';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface NoteCardProps {
@@ -16,6 +17,8 @@ interface NoteCardProps {
 }
 
 export function NoteCard({ note, entries, onPress, onEdit, onClone, onDelete, onLongPress, selected, selectionMode }: NoteCardProps) {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const summary = getNoteSummary(note, entries);
 
   return (
@@ -66,21 +69,21 @@ export function NoteCard({ note, entries, onPress, onEdit, onClone, onDelete, on
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   card: {
     position: 'relative',
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     borderLeftWidth: 3,
-    borderLeftColor: MoneyTheme.clay,
+    borderLeftColor: theme.clay,
     padding: 16,
     marginBottom: 14,
   },
   selectedCard: {
-    borderColor: MoneyTheme.pine,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    borderColor: theme.pine,
+    backgroundColor: theme.surfaceSoft,
   },
   headerRow: {
     flexDirection: 'row',
@@ -91,12 +94,12 @@ const styles = StyleSheet.create({
   titleWrap: { flex: 1 },
   title: {
     fontSize: 18,
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontFamily: 'serif',
     fontWeight: '600',
   },
   meta: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 12,
     marginTop: 4,
   },
@@ -109,35 +112,35 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: MoneyTheme.muted,
+    borderColor: theme.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectionIndicatorSelected: {
-    backgroundColor: MoneyTheme.pine,
-    borderColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
+    borderColor: theme.pine,
   },
   selectionCheck: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontSize: 15,
     fontWeight: '700',
   },
   pill: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
     fontSize: 11,
     fontWeight: '600',
   },
   danger: {
-    color: MoneyTheme.danger,
-    backgroundColor: MoneyTheme.dangerSoft,
+    color: theme.danger,
+    backgroundColor: theme.dangerSoft,
   },
   total: {
     fontSize: 28,
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontFamily: 'serif',
     fontWeight: '600',
     marginBottom: 12,
@@ -148,30 +151,30 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   label: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 13,
   },
   value: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '600',
     fontSize: 13,
   },
   progressWrap: {
     height: 8,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
     borderRadius: 999,
     overflow: 'hidden',
     marginTop: 12,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: MoneyTheme.paid,
+    backgroundColor: theme.paid,
     borderRadius: 999,
   },
   completion: {
     textAlign: 'right',
     marginTop: 8,
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontWeight: '600',
     fontSize: 12,
   },
@@ -185,16 +188,15 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   completedStamp: {
-    // borderWidth: 3,
-    borderColor: MoneyTheme.paid,
+    borderColor: theme.paid,
     borderRadius: 6,
-    backgroundColor: MoneyTheme.paidSoft,
+    backgroundColor: theme.paidSoft,
     paddingHorizontal: 14,
     paddingVertical: 10,
     transform: [{ rotate: '-14deg' }],
   },
   completedStampText: {
-    color: MoneyTheme.paid,
+    color: theme.paid,
     fontSize: 18,
     fontWeight: '900',
     letterSpacing: 1,

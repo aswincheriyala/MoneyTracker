@@ -1,5 +1,5 @@
-import { MoneyTheme } from '@/constants/money-theme';
-import { useEffect } from 'react';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
     Easing,
@@ -12,6 +12,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 export function SyncLoader({ message = 'Fetching your notes…' }: { message?: string }) {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const barScale = useSharedValue(1);
   const dotOne = useSharedValue(0.35);
   const dotTwo = useSharedValue(0.35);
@@ -74,7 +76,7 @@ export function SyncLoader({ message = 'Fetching your notes…' }: { message?: s
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
   markLine: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
   },
   markLineLong: {
     width: 34,
@@ -104,10 +106,10 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: MoneyTheme.clay,
+    backgroundColor: theme.clay,
   },
   message: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 14,
     fontWeight: '600',
   },

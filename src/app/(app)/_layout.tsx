@@ -1,8 +1,10 @@
 import { Redirect, Stack } from 'expo-router';
 
+import { useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 
 export default function AppLayout() {
+  const theme = useMoneyTheme();
   const { user, loading } = useAppData();
 
   if (loading) {
@@ -13,19 +15,23 @@ export default function AppLayout() {
     return <Redirect href="/(auth)" />;
   }
 
+  const headerOptions = {
+    headerBackButtonDisplayMode: 'minimal' as const,
+    headerStyle: { backgroundColor: theme.canvas },
+    headerTintColor: theme.ink,
+    headerTitleStyle: { fontFamily: 'serif' },
+    headerShadowVisible: false,
+  };
+
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#edf1e9' } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.canvas } }}>
       {/* <Stack.Screen name="index" /> */}
       <Stack.Screen
         name="notes/[id]"
         options={{
           headerShown: true,
           title: 'Note',
-          headerBackButtonDisplayMode: 'minimal',
-          headerStyle: { backgroundColor: '#edf1e9' },
-          headerTintColor: '#183d32',
-          headerTitleStyle: { fontFamily: 'serif' },
-          headerShadowVisible: false,
+          ...headerOptions,
         }}
       />
       <Stack.Screen
@@ -33,11 +39,7 @@ export default function AppLayout() {
         options={{
           headerShown: true,
           title: 'Profile',
-          headerBackButtonDisplayMode: 'minimal',
-          headerStyle: { backgroundColor: '#edf1e9' },
-          headerTintColor: '#183d32',
-          headerTitleStyle: { fontFamily: 'serif' },
-          headerShadowVisible: false,
+          ...headerOptions,
         }}
       />
       <Stack.Screen
@@ -45,11 +47,7 @@ export default function AppLayout() {
         options={{
           headerShown: true,
           title: 'Confirm payment',
-          headerBackButtonDisplayMode: 'minimal',
-          headerStyle: { backgroundColor: '#edf1e9' },
-          headerTintColor: '#183d32',
-          headerTitleStyle: { fontFamily: 'serif' },
-          headerShadowVisible: false,
+          ...headerOptions,
         }}
       />
     </Stack>

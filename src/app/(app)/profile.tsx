@@ -1,11 +1,16 @@
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { formatCurrency, getNoteSummary } from '@/lib/finance';
+import { ThemePreference, useThemePreference } from '@/lib/theme-preference';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const [themePreference, setThemePreference] = useThemePreference();
   const { user, notes, entries, signOut, syncData, syncing, lastSyncedAt, pendingChangeCount } = useAppData();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -83,6 +88,31 @@ export default function ProfileScreen() {
 
         <View style={styles.syncSection}>
           <View style={styles.syncCopy}>
+            <Text style={styles.syncTitle}>Appearance</Text>
+            <Text style={styles.syncStatus}>Choose how the app looks on this device.</Text>
+          </View>
+          <View style={styles.themeRow}>
+            {(['system', 'light', 'dark'] as ThemePreference[]).map((option) => {
+              const isActive = themePreference === option;
+              return (
+                <Pressable
+                  key={option}
+                  style={[styles.themeOption, isActive && styles.themeOptionActive]}
+                  onPress={() => setThemePreference(option)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <Text style={[styles.themeOptionText, isActive && styles.themeOptionTextActive]}>
+                    {option === 'system' ? 'System' : option === 'light' ? 'Light' : 'Dark'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.syncSection}>
+          <View style={styles.syncCopy}>
             <Text style={styles.syncTitle}>Data sync</Text>
             <Text style={styles.syncStatus}>{syncStatus} · automatic after 10:00 PM while the app is open</Text>
           </View>
@@ -99,22 +129,22 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#edf1e9',
+    backgroundColor: theme.canvas,
   },
   container: {
     flexGrow: 1,
     padding: 20,
-    backgroundColor: '#edf1e9',
+    backgroundColor: theme.canvas,
     gap: 18,
   },
   card: {
-    backgroundColor: '#fbfcf8',
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#d4dbd0',
+    borderColor: theme.line,
     padding: 24,
     alignItems: 'center',
   },
@@ -122,35 +152,35 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 8,
-    backgroundColor: '#e5ebe2',
+    backgroundColor: theme.surfaceSoft,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 14,
   },
   avatarText: {
-    color: '#183d32',
+    color: theme.ink,
     fontWeight: '800',
     fontSize: 26,
   },
   name: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#183d32',
+    color: theme.ink,
     fontFamily: 'serif',
   },
   email: {
     marginTop: 6,
-    color: '#69776d',
+    color: theme.muted,
   },
   statsRow: {
     flexDirection: 'row',
     gap: 12,
   },
   syncSection: {
-    backgroundColor: '#fbfcf8',
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#d4dbd0',
+    borderColor: theme.line,
     padding: 16,
     gap: 14,
   },
@@ -158,55 +188,80 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   syncTitle: {
-    color: '#183d32',
+    color: theme.ink,
     fontWeight: '700',
     fontSize: 16,
   },
   syncStatus: {
-    color: '#69776d',
+    color: theme.muted,
     fontSize: 13,
   },
   syncButton: {
-    backgroundColor: '#183d32',
+    backgroundColor: theme.pine,
     borderRadius: 5,
     paddingVertical: 13,
     alignItems: 'center',
   },
   syncButtonText: {
-    color: '#fbfcf8',
+    color: theme.surface,
     fontWeight: '700',
     fontSize: 15,
   },
+  themeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeOption: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: theme.line,
+    backgroundColor: theme.canvas,
+    alignItems: 'center',
+  },
+  themeOptionActive: {
+    backgroundColor: theme.pine,
+    borderColor: theme.pine,
+  },
+  themeOptionText: {
+    color: theme.ink,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  themeOptionTextActive: {
+    color: theme.surface,
+  },
   statBox: {
     flex: 1,
-    backgroundColor: '#fbfcf8',
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#d4dbd0',
+    borderColor: theme.line,
     padding: 18,
   },
   statLabel: {
-    color: '#69776d',
+    color: theme.muted,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
   statValue: {
     marginTop: 8,
-    color: '#183d32',
+    color: theme.ink,
     fontSize: 18,
     fontWeight: '800',
   },
   signOutButton: {
-    backgroundColor: '#f5e5df',
+    backgroundColor: theme.dangerSoft,
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: '#a65345',
+    borderColor: theme.danger,
     paddingVertical: 14,
     alignItems: 'center',
   },
   signOutText: {
-    color: '#a65345',
+    color: theme.danger,
     fontWeight: '700',
     fontSize: 16,
   },

@@ -1,10 +1,13 @@
-import { MoneyTheme } from '@/constants/money-theme';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function WelcomeScreen() {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { signIn, loading } = useAppData();
 
   const handleGoogleSignIn = async () => {
@@ -99,10 +102,10 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
   },
   page: {
     flexGrow: 1,
@@ -110,7 +113,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingTop: 30,
     paddingBottom: 32,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
   },
   brand: {
     flexDirection: 'row',
@@ -121,7 +124,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 4,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     justifyContent: 'center',
     alignItems: 'flex-start',
     paddingHorizontal: 10,
@@ -130,23 +133,23 @@ const styles = StyleSheet.create({
   markLineLong: {
     width: 21,
     height: 2,
-    backgroundColor: MoneyTheme.sand,
+    backgroundColor: theme.sand,
   },
   markLineShort: {
     width: 14,
     height: 2,
-    backgroundColor: MoneyTheme.sand,
+    backgroundColor: theme.sand,
   },
   brandCopy: {
     gap: 3,
   },
   brandName: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontSize: 13,
     fontWeight: '800',
   },
   brandLabel: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 9,
     fontWeight: '700',
   },
@@ -155,14 +158,14 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   eyebrow: {
-    color: MoneyTheme.clay,
+    color: theme.clay,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
   },
   title: {
     maxWidth: 340,
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontFamily: 'serif',
     fontSize: 40,
     fontWeight: '500',
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     maxWidth: 330,
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 15,
     lineHeight: 23,
   },
@@ -183,12 +186,12 @@ const styles = StyleSheet.create({
   accentPrimary: {
     width: 34,
     height: 3,
-    backgroundColor: MoneyTheme.clay,
+    backgroundColor: theme.clay,
   },
   accentSecondary: {
     width: 14,
     height: 3,
-    backgroundColor: MoneyTheme.sand,
+    backgroundColor: theme.sand,
   },
   featureList: {
     marginTop: 34,
@@ -203,16 +206,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 5,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
   featureBar: {
     height: 3,
     borderRadius: 2,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     alignSelf: 'flex-start',
     marginLeft: 9,
   },
@@ -231,17 +234,17 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: MoneyTheme.paid,
+    backgroundColor: theme.paid,
     alignItems: 'center',
     justifyContent: 'center',
   },
   featureCheck: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontSize: 11,
     fontWeight: '900',
   },
   featureRupee: {
-    color: MoneyTheme.clay,
+    color: theme.clay,
     fontSize: 17,
     fontWeight: '800',
   },
@@ -250,12 +253,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   featureTitle: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontSize: 15,
     fontWeight: '700',
   },
   featureBody: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 13,
     lineHeight: 19,
   },
@@ -264,16 +267,16 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: MoneyTheme.line,
+    backgroundColor: theme.line,
     marginBottom: 24,
   },
   welcome: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontSize: 23,
     fontWeight: '700',
   },
   instruction: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 14,
     lineHeight: 21,
     marginTop: 5,
@@ -286,33 +289,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
     borderRadius: 5,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
   },
   googleButtonPressed: {
-    backgroundColor: MoneyTheme.pinePressed,
+    backgroundColor: theme.pinePressed,
   },
   googleMark: {
     position: 'absolute',
     left: 18,
-    color: MoneyTheme.sand,
+    color: theme.sand,
     fontSize: 19,
     fontWeight: '700',
   },
   googleButtonText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontSize: 15,
     fontWeight: '700',
   },
   buttonArrow: {
     position: 'absolute',
     right: 18,
-    color: MoneyTheme.sand,
+    color: theme.sand,
     fontSize: 25,
     lineHeight: 28,
   },
   securityNote: {
     marginTop: 18,
-    color: MoneyTheme.quiet,
+    color: theme.quiet,
     fontSize: 10,
     fontWeight: '700',
     textAlign: 'center',

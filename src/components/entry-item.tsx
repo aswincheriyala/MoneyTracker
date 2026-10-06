@@ -1,6 +1,7 @@
-import { MoneyTheme } from '@/constants/money-theme';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { formatCurrency, getStatusColor } from '@/lib/finance';
 import { MoneyEntry } from '@/types/finance';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface EntryItemProps {
@@ -18,7 +19,10 @@ interface EntryItemProps {
 }
 
 export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid, onMarkPending, onPress, onLongPress, selected = false, selectionMode = false }: EntryItemProps) {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const isPaid = entry.status === 'PAID';
+  const statusColor = getStatusColor(entry.status, theme);
 
   return (
     <Pressable
@@ -39,8 +43,8 @@ export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid,
           {entry.recipientUpiId ? `UPI: ${entry.recipientUpiId}` : 'No recipient'}
         </Text>
         <View style={styles.metaBadges}>
-          <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(entry.status)}22` }]}> 
-            <Text style={[styles.statusText, { color: getStatusColor(entry.status) }]}>{entry.status}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
+            <Text style={[styles.statusText, { color: statusColor }]}>{entry.status}</Text>
           </View>
           {selectionMode ? (
             <View style={[styles.selectionIndicator, selected && styles.selectionIndicatorSelected]}>
@@ -82,18 +86,18 @@ export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid,
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     padding: 12,
     marginBottom: 8,
   },
   selectedCard: {
-    borderColor: MoneyTheme.pine,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    borderColor: theme.pine,
+    backgroundColor: theme.surfaceSoft,
   },
   metaBadges: {
     flexDirection: 'row',
@@ -105,16 +109,16 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 1,
-    borderColor: MoneyTheme.muted,
+    borderColor: theme.muted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectionIndicatorSelected: {
-    backgroundColor: MoneyTheme.pine,
-    borderColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
+    borderColor: theme.pine,
   },
   selectionCheck: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -127,21 +131,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: MoneyTheme.ink,
+    color: theme.ink,
   },
   amount: {
     fontSize: 18,
     fontWeight: '800',
-    color: MoneyTheme.ink,
+    color: theme.ink,
   },
   paidText: {
-    color: MoneyTheme.quiet,
+    color: theme.quiet,
     textDecorationLine: 'line-through',
   },
   meta: {
     flex: 1,
     minWidth: 0,
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 11,
   },
   metaRow: {
@@ -169,7 +173,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   link: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '600',
     fontSize: 11,
   },
@@ -180,7 +184,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   payButton: {
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 5,
@@ -191,28 +195,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   markPaidButton: {
-    borderColor: MoneyTheme.paid,
+    borderColor: theme.paid,
     borderWidth: 1,
-    backgroundColor: MoneyTheme.paidSoft,
+    backgroundColor: theme.paidSoft,
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 5,
   },
   markPaidText: {
-    color: MoneyTheme.paid,
+    color: theme.paid,
     fontWeight: '700',
     fontSize: 10,
   },
   markPendingButton: {
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     borderWidth: 1,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 5,
   },
   markPendingText: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontWeight: '700',
     fontSize: 11,
   },

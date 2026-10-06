@@ -1,6 +1,6 @@
 import { AnimatedModal } from '@/components/animated-modal';
 import { EntryItem } from '@/components/entry-item';
-import { MoneyTheme } from '@/constants/money-theme';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { formatCurrency, getNoteSummary, sortEntries, toPaise } from '@/lib/finance';
 import { openUpiPayment } from '@/lib/upi';
@@ -11,6 +11,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NoteDetailScreen() {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { notes, entries, createEntry, updateEntry, deleteEntry, deleteEntries, setEntriesPaidStatus, togglePaidStatus } = useAppData();
   const note = notes.find((item) => item.id === id);
@@ -254,8 +256,8 @@ export default function NoteDetailScreen() {
           <View style={styles.summaryDivider} />
           <View style={styles.summaryMetrics}>
             {[
-              { label: 'Paid', amountPaise: summary?.paidPaise ?? 0, color: MoneyTheme.paid },
-              { label: 'Pending', amountPaise: summary?.pendingPaise ?? 0, color: MoneyTheme.pending },
+              { label: 'Paid', amountPaise: summary?.paidPaise ?? 0, color: theme.paid },
+              { label: 'Pending', amountPaise: summary?.pendingPaise ?? 0, color: theme.pending },
             ].map((metric, index) => (
               <View key={metric.label} style={[styles.summaryMetric, index > 0 && styles.summaryMetricSeparated]}>
                 <Text style={styles.summaryMetricLabel}>{metric.label}</Text>
@@ -336,7 +338,7 @@ export default function NoteDetailScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <TextInput ref={entryTitleInputRef} value={title} onChangeText={setTitle} placeholder="Title or item" style={styles.input} />
+          <TextInput ref={entryTitleInputRef} value={title} onChangeText={setTitle} placeholder="Title or item" placeholderTextColor={theme.quiet} style={styles.input} />
           <View style={styles.quickAmountRow}>
             {[500, 1000, 5000].map((preset) => (
               <Pressable
@@ -350,8 +352,8 @@ export default function NoteDetailScreen() {
               </Pressable>
             ))}
           </View>
-          <TextInput value={amount} onChangeText={setAmount} placeholder="Amount in ₹" keyboardType="decimal-pad" style={styles.input} />
-          <TextInput value={recipientUpiId} onChangeText={setRecipientUpiId} placeholder="Recipient UPI ID (optional)" style={styles.input} />
+          <TextInput value={amount} onChangeText={setAmount} placeholder="Amount in ₹" keyboardType="decimal-pad" placeholderTextColor={theme.quiet} style={styles.input} />
+          <TextInput value={recipientUpiId} onChangeText={setRecipientUpiId} placeholder="Recipient UPI ID (optional)" placeholderTextColor={theme.quiet} style={styles.input} />
           <View style={styles.formActions}>
             <Pressable style={styles.secondaryButton} onPress={closeForm}>
               <Text style={styles.secondaryText}>Cancel</Text>
@@ -369,6 +371,8 @@ export default function NoteDetailScreen() {
 }
 
 function EntryFormHeader({ mode, onClose }: { mode: 'create' | 'edit' | 'clone'; onClose: () => void }) {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.modalHeader}>
       <Text style={styles.formTitle}>
@@ -381,14 +385,14 @@ function EntryFormHeader({ mode, onClose }: { mode: 'create' | 'edit' | 'clone';
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
   },
   container: {
     padding: 18,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
     paddingBottom: 104,
     gap: 16,
   },
@@ -403,17 +407,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryLabel: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 14,
     fontWeight: '700',
   },
   summaryCount: {
-    color: MoneyTheme.quiet,
+    color: theme.quiet,
     fontSize: 12,
     marginTop: 3,
   },
   summaryTotal: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontFamily: 'serif',
     fontWeight: '600',
     fontSize: 26,
@@ -421,7 +425,7 @@ const styles = StyleSheet.create({
   },
   summaryDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: MoneyTheme.line,
+    backgroundColor: theme.line,
   },
   summaryMetrics: {
     flexDirection: 'row',
@@ -432,11 +436,11 @@ const styles = StyleSheet.create({
   },
   summaryMetricSeparated: {
     borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: MoneyTheme.line,
+    borderLeftColor: theme.line,
     paddingLeft: 12,
   },
   summaryMetricLabel: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 11,
     fontWeight: '600',
     marginBottom: 4,
@@ -453,17 +457,17 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 5,
-    shadowColor: MoneyTheme.ink,
+    shadowColor: theme.ink,
     shadowOpacity: 0.22,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
   floatingButtonText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontSize: 34,
     fontWeight: '400',
     lineHeight: 38,
@@ -478,7 +482,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalClose: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 28,
     lineHeight: 30,
     paddingHorizontal: 4,
@@ -490,18 +494,19 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontFamily: 'serif',
     marginBottom: 2,
   },
   input: {
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 15,
+    color: theme.ink,
   },
   quickAmountRow: {
     flexDirection: 'row',
@@ -516,12 +521,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     borderRadius: 5,
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
   },
   quickAmountText: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -532,23 +537,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryButton: {
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 5,
   },
   primaryText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
   },
   secondaryButton: {
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 5,
   },
   secondaryText: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '700',
   },
   selectionToolbar: {
@@ -557,53 +562,53 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
     padding: 12,
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     borderRadius: 6,
   },
   selectionCount: {
     flex: 1,
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '700',
   },
   cancelSelectionText: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontWeight: '600',
     paddingVertical: 8,
   },
   bulkPaidButton: {
-    backgroundColor: MoneyTheme.paid,
+    backgroundColor: theme.paid,
     borderRadius: 5,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
   bulkPaidText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
     fontSize: 12,
   },
   bulkPendingButton: {
-    backgroundColor: MoneyTheme.surfaceSoft,
+    backgroundColor: theme.surfaceSoft,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     borderRadius: 5,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
   bulkPendingText: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '700',
     fontSize: 12,
   },
   bulkDeleteButton: {
-    backgroundColor: MoneyTheme.danger,
+    backgroundColor: theme.danger,
     borderRadius: 5,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
   bulkDeleteText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
     fontSize: 12,
   },
@@ -611,15 +616,15 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   emptyState: {
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     padding: 24,
     alignItems: 'center',
   },
   emptyTitle: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontWeight: '600',
     fontSize: 18,
   },

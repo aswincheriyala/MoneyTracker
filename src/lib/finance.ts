@@ -1,5 +1,5 @@
 import { DashboardSummary, EntryStatus, MoneyEntry, MoneyNote, NoteSummary, SortOption } from '@/types/finance';
-import { MoneyTheme } from '../constants/money-theme';
+import { MoneyTheme, MoneyThemeColors } from '../constants/money-theme';
 
 export function createId(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
@@ -127,14 +127,14 @@ export function sortEntries(entries: MoneyEntry[], option: SortOption): MoneyEnt
   }
 }
 
-export function getStatusColor(status: EntryStatus): string {
+export function getStatusColor(status: EntryStatus, theme: MoneyThemeColors = MoneyTheme): string {
   switch (status) {
     case 'PAID':
-      return MoneyTheme.paid;
+      return theme.paid;
     case 'CANCELLED':
-      return MoneyTheme.danger;
+      return theme.danger;
     default:
-      return MoneyTheme.pending;
+      return theme.pending;
   }
 }
 

@@ -1,5 +1,5 @@
-import { MoneyTheme } from '@/constants/money-theme';
-import { ReactNode, useEffect, useState } from 'react';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -14,6 +14,8 @@ type AnimatedModalProps = {
 const SPRING_CONFIG = { damping: 20, stiffness: 260, mass: 0.6 };
 
 export function AnimatedModal({ visible, onClose, children, maxHeight = '85%' }: AnimatedModalProps) {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const [isRendered, setIsRendered] = useState(visible);
   const progress = useSharedValue(visible ? 1 : 0);
   const keyboardHeight = useSharedValue(0);
@@ -91,10 +93,10 @@ export function AnimatedModal({ visible, onClose, children, maxHeight = '85%' }:
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: MoneyTheme.overlay,
+    backgroundColor: theme.overlay,
   },
   keyboardContainer: {
     flex: 1,
@@ -102,7 +104,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 8,
     padding: 20,
     gap: 14,

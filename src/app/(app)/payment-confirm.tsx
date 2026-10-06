@@ -1,12 +1,14 @@
-import { MoneyTheme } from '@/constants/money-theme';
+import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { formatCurrency } from '@/lib/finance';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PaymentConfirmScreen() {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { entryId } = useLocalSearchParams<{ entryId: string; returnTo?: string }>();
   const { entries, togglePaidStatus } = useAppData();
   const entry = entries.find((item) => item.id === entryId);
@@ -44,6 +46,7 @@ export default function PaymentConfirmScreen() {
           value={reference}
           onChangeText={setReference}
           placeholder="UTR or transaction reference (optional)"
+          placeholderTextColor={theme.quiet}
           style={styles.input}
         />
 
@@ -60,41 +63,42 @@ export default function PaymentConfirmScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: MoneyTheme.canvas,
+    backgroundColor: theme.canvas,
     gap: 14,
   },
   title: {
     fontSize: 28,
     fontWeight: '600',
     fontFamily: 'serif',
-    color: MoneyTheme.ink,
+    color: theme.ink,
   },
   amount: {
     fontSize: 30,
     fontWeight: '700',
     fontFamily: 'serif',
-    color: MoneyTheme.pine,
+    color: theme.pine,
   },
   detail: {
-    color: MoneyTheme.muted,
+    color: theme.muted,
     fontSize: 16,
   },
   input: {
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
     padding: 12,
     fontSize: 15,
+    color: theme.ink,
   },
   buttonRow: {
     width: '100%',
@@ -106,7 +110,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     width: '100%',
     minHeight: 52,
-    backgroundColor: MoneyTheme.pine,
+    backgroundColor: theme.pine,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 5,
@@ -114,7 +118,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryText: {
-    color: MoneyTheme.surface,
+    color: theme.surface,
     fontWeight: '700',
     fontSize: 15,
     lineHeight: 20,
@@ -124,17 +128,17 @@ const styles = StyleSheet.create({
   secondaryButton: {
     width: '100%',
     minHeight: 52,
-    backgroundColor: MoneyTheme.surface,
+    backgroundColor: theme.surface,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: MoneyTheme.line,
+    borderColor: theme.line,
   },
   secondaryText: {
-    color: MoneyTheme.ink,
+    color: theme.ink,
     fontWeight: '700',
     fontSize: 15,
     lineHeight: 20,
