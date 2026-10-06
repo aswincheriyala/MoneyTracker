@@ -1,3 +1,4 @@
+import { AnimatedModal } from '@/components/animated-modal';
 import { EntryItem } from '@/components/entry-item';
 import { MoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
@@ -5,8 +6,8 @@ import { formatCurrency, getNoteSummary, sortEntries, toPaise } from '@/lib/fina
 import { openUpiPayment } from '@/lib/upi';
 import { MoneyEntry } from '@/types/finance';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NoteDetailScreen() {
@@ -23,6 +24,12 @@ export default function NoteDetailScreen() {
   const [isApplyingBulk, setApplyingBulk] = useState(false);
   const entryTitleInputRef = useRef<TextInput>(null);
   const selectionMode = selectedEntryIds.size > 0;
+
+  useEffect(() => {
+    if (!isFormOpen) return;
+    const focusTimer = setTimeout(() => entryTitleInputRef.current?.focus(), 120);
+    return () => clearTimeout(focusTimer);
+  }, [isFormOpen]);
 
   const noteEntries = useMemo(() => sortEntries(entries.filter((entry) => entry.noteId === id), 'created'), [entries, id]);
   const summary = useMemo(() => note ? getNoteSummary(note, entries) : null, [entries, note]);
@@ -41,8 +48,8 @@ export default function NoteDetailScreen() {
   };
 
   const closeForm = () => {
-    setFormOpen(false);
     resetForm();
+    setFormOpen(false);
   };
 
   const handleSubmit = async () => {
@@ -318,63 +325,59 @@ export default function NoteDetailScreen() {
         <Text style={styles.floatingButtonText}>+</Text>
       </Pressable>
 
-      <Modal
-        visible={isFormOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={closeForm}
-        onShow={() => entryTitleInputRef.current?.focus()}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
+      <AnimatedModal visible={isFormOpen} onClose={closeForm}>
+        <EntryFormHeader
+          mode={formMode}
+          onClose={closeForm}
+        />
+        <ScrollView
+          style={styles.modalScroll}
+          contentContainerStyle={styles.modalContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.formTitle}>
-                {formMode === 'edit' ? 'Edit item' : formMode === 'clone' ? 'Clone item' : 'Add item'}
-              </Text>
-              <Pressable onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close form">
-                <Text style={styles.modalClose}>×</Text>
+          <TextInput ref={entryTitleInputRef} value={title} onChangeText={setTitle} placeholder="Title or item" style={styles.input} />
+          <View style={styles.quickAmountRow}>
+            {[500, 1000, 5000].map((preset) => (
+              <Pressable
+                key={preset}
+                style={styles.quickAmountButton}
+                onPress={() => setAmount(((toPaise(amount) + preset * 100) / 100).toString())}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${preset} rupees to amount`}
+              >
+                <Text style={styles.quickAmountText}>+₹{preset.toLocaleString('en-IN')}</Text>
               </Pressable>
-            </View>
-            <ScrollView
-              contentContainerStyle={styles.modalContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <TextInput ref={entryTitleInputRef} value={title} onChangeText={setTitle} placeholder="Title or item" autoFocus style={styles.input} />
-              <View style={styles.quickAmountRow}>
-                {[500, 1000, 5000].map((preset) => (
-                  <Pressable
-                    key={preset}
-                    style={styles.quickAmountButton}
-                    onPress={() => setAmount(((toPaise(amount) + preset * 100) / 100).toString())}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add ${preset} rupees to amount`}
-                  >
-                    <Text style={styles.quickAmountText}>+₹{preset.toLocaleString('en-IN')}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <TextInput value={amount} onChangeText={setAmount} placeholder="Amount in ₹" keyboardType="decimal-pad" style={styles.input} />
-              <TextInput value={recipientUpiId} onChangeText={setRecipientUpiId} placeholder="Recipient UPI ID (optional)" style={styles.input} />
-              <View style={styles.formActions}>
-                <Pressable style={styles.secondaryButton} onPress={closeForm}>
-                  <Text style={styles.secondaryText}>Cancel</Text>
-                </Pressable>
-                <Pressable style={styles.primaryButton} onPress={handleSubmit}>
-                  <Text style={styles.primaryText}>
-                    {formMode === 'edit' ? 'Update item' : formMode === 'clone' ? 'Create copy' : 'Add item'}
-                  </Text>
-                </Pressable>
-              </View>
-            </ScrollView>
+            ))}
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          <TextInput value={amount} onChangeText={setAmount} placeholder="Amount in ₹" keyboardType="decimal-pad" style={styles.input} />
+          <TextInput value={recipientUpiId} onChangeText={setRecipientUpiId} placeholder="Recipient UPI ID (optional)" style={styles.input} />
+          <View style={styles.formActions}>
+            <Pressable style={styles.secondaryButton} onPress={closeForm}>
+              <Text style={styles.secondaryText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.primaryButton} onPress={handleSubmit}>
+              <Text style={styles.primaryText}>
+                {formMode === 'edit' ? 'Update item' : formMode === 'clone' ? 'Create copy' : 'Add item'}
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </AnimatedModal>
     </SafeAreaView>
+  );
+}
+
+function EntryFormHeader({ mode, onClose }: { mode: 'create' | 'edit' | 'clone'; onClose: () => void }) {
+  return (
+    <View style={styles.modalHeader}>
+      <Text style={styles.formTitle}>
+        {mode === 'edit' ? 'Edit item' : mode === 'clone' ? 'Clone item' : 'Add item'}
+      </Text>
+      <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close form">
+        <Text style={styles.modalClose}>×</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -466,22 +469,8 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     marginTop: -2,
   },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: MoneyTheme.overlay,
-    padding: 16,
-  },
-  modalCard: {
-    width: '100%',
-    maxHeight: '90%',
-    backgroundColor: MoneyTheme.surface,
-    borderRadius: 8,
-    padding: 16,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: MoneyTheme.line,
+  modalScroll: {
+    flexGrow: 0,
   },
   modalHeader: {
     flexDirection: 'row',

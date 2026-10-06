@@ -1,9 +1,10 @@
+import { AnimatedModal } from '@/components/animated-modal';
 import { NoteCard } from '@/components/note-card';
 import { MoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { router } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -43,10 +44,10 @@ export default function HomeScreen() {
   };
 
   const closeComposer = () => {
-    setComposerOpen(false);
     setDraftTitle('');
     setEditingNoteId(null);
     setCloningNoteId(null);
+    setComposerOpen(false);
   };
 
   const submitNote = async () => {
@@ -202,44 +203,67 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <Modal
+      <NoteComposer
         visible={isComposerOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={closeComposer}
-        onShow={() => titleInputRef.current?.focus()}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
-        >
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              {editingNoteId ? 'Edit note' : cloningNoteId ? 'Clone note' : 'New note'}
-            </Text>
-            <TextInput
-              ref={titleInputRef}
-              value={draftTitle}
-              onChangeText={setDraftTitle}
-              placeholder="Note title"
-              autoFocus
-              style={styles.modalInput}
-            />
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalSecondary} onPress={closeComposer}>
-                <Text style={styles.modalSecondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalPrimary} onPress={submitNote}>
-                <Text style={styles.modalPrimaryText}>
-                  {editingNoteId ? 'Save' : cloningNoteId ? 'Create copy' : 'Create'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        title={draftTitle}
+        isEditing={Boolean(editingNoteId)}
+        isCloning={Boolean(cloningNoteId)}
+        inputRef={titleInputRef}
+        onChangeTitle={setDraftTitle}
+        onClose={closeComposer}
+        onSubmit={submitNote}
+      />
     </SafeAreaView>
+  );
+}
+
+type NoteComposerProps = {
+  visible: boolean;
+  title: string;
+  isEditing: boolean;
+  isCloning: boolean;
+  inputRef: React.RefObject<TextInput | null>;
+  onChangeTitle: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+};
+
+function NoteComposer({ visible, title, isEditing, isCloning, inputRef, onChangeTitle, onClose, onSubmit }: NoteComposerProps) {
+  useEffect(() => {
+    if (!visible) return;
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 120);
+    return () => clearTimeout(focusTimer);
+  }, [visible, inputRef]);
+
+  return (
+    <AnimatedModal visible={visible} onClose={onClose}>
+      <Text style={styles.modalTitle}>
+        {isEditing ? 'Edit note' : isCloning ? 'Clone note' : 'New note'}
+      </Text>
+      <ScrollView
+        style={styles.modalScroll}
+        contentContainerStyle={styles.modalScrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TextInput
+          ref={inputRef}
+          value={title}
+          onChangeText={onChangeTitle}
+          placeholder="Note title"
+          style={styles.modalInput}
+        />
+      </ScrollView>
+      <View style={styles.modalActions}>
+        <Pressable style={styles.modalSecondary} onPress={onClose}>
+          <Text style={styles.modalSecondaryText}>Cancel</Text>
+        </Pressable>
+        <Pressable style={styles.modalPrimary} onPress={onSubmit}>
+          <Text style={styles.modalPrimaryText}>
+            {isEditing ? 'Save' : isCloning ? 'Create copy' : 'Create'}
+          </Text>
+        </Pressable>
+      </View>
+    </AnimatedModal>
   );
 }
 
@@ -366,17 +390,11 @@ const styles = StyleSheet.create({
     color: MoneyTheme.muted,
     lineHeight: 22,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: MoneyTheme.overlay,
-    justifyContent: 'flex-end',
+  modalScroll: {
+    flexGrow: 0,
   },
-  modalCard: {
-    backgroundColor: MoneyTheme.surface,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    padding: 20,
-    gap: 14,
+  modalScrollContent: {
+    flexGrow: 1,
   },
   modalTitle: {
     fontSize: 22,
