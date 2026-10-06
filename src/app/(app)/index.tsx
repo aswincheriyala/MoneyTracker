@@ -66,7 +66,8 @@ export default function HomeScreen() {
       } else if (cloningNoteId) {
         await cloneNote(cloningNoteId, cleaned);
       } else {
-        await createNote(cleaned);
+        const note = await createNote(cleaned);
+        router.push({ pathname: '/(app)/notes/[id]', params: { id: note.id } });
       }
       closeComposer();
     } catch (error) {
