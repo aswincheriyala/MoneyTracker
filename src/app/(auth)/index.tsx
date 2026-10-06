@@ -23,84 +23,124 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.page}>
-        <View>
-          <View style={styles.brand}>
-            <View style={styles.brandMark}>
-              <View style={styles.markLineLong} />
-              <View style={styles.markLineShort} />
-              <View style={styles.markLineLong} />
-            </View>
-            <View style={styles.brandCopy}>
-              <Text style={styles.brandName}>MONEY TRACKER</Text>
-              <Text style={styles.brandLabel}>PERSONAL FINANCE</Text>
-            </View>
-          </View>
-
-          <View style={styles.hero}>
-            <Text style={styles.eyebrow}>KNOW WHERE IT GOES</Text>
-            <Text style={styles.title}>Big amount in.{'\n'}Small amounts out.</Text>
-            <Text style={styles.subtitle}>Break any lump sum into items. Track each one.</Text>
-            <View style={styles.accentRule}>
-              <View style={styles.accentPrimary} />
-              <View style={styles.accentSecondary} />
-            </View>
-          </View>
-
-          <View style={styles.featureList}>
-            <View style={styles.featureRow}>
-              <View style={styles.featureMark}>
-                <View style={[styles.featureBar, styles.featureBarFull]} />
-                <View style={[styles.featureBar, styles.featureBarMid]} />
-                <View style={[styles.featureBar, styles.featureBarSmall]} />
-              </View>
-              <View style={styles.featureCopy}>
-                <Text style={styles.featureTitle}>Break it down</Text>
-                <Text style={styles.featureBody}>One big amount, small named items.</Text>
-              </View>
-            </View>
-            <View style={styles.featureRow}>
-              <View style={styles.featureMark}>
-                <View style={styles.featureCheckWrap}>
-                  <Text style={styles.featureCheck}>✓</Text>
-                </View>
-              </View>
-              <View style={styles.featureCopy}>
-                <Text style={styles.featureTitle}>Paid or pending</Text>
-                <Text style={styles.featureBody}>Always know what{'\u2019'}s left.</Text>
-              </View>
-            </View>
-            <View style={styles.featureRow}>
-              <View style={styles.featureMark}>
-                <Text style={styles.featureRupee}>₹</Text>
-              </View>
-              <View style={styles.featureCopy}>
-                <Text style={styles.featureTitle}>Pay via UPI</Text>
-                <Text style={styles.featureBody}>Pay in your UPI app. Confirm here.</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.signIn}>
-          <View style={styles.divider} />
-          <Text style={styles.welcome}>Start tracking</Text>
-          <Text style={styles.instruction}>Sign in. Sync everywhere.</Text>
-          <Pressable
-            style={({ pressed }) => [styles.googleButton, pressed && !loading && styles.googleButtonPressed]}
-            onPress={handleGoogleSignIn}
-            disabled={loading}
-            accessibilityRole="button"
-          >
-            <Text style={styles.googleMark}>G</Text>
-            <Text style={styles.googleButtonText}>{loading ? 'Preparing...' : 'Continue with Google'}</Text>
-            <Text style={styles.buttonArrow}>›</Text>
-          </Pressable>
-          <Text style={styles.securityNote}>SECURE SIGN-IN  /  GOOGLE</Text>
-        </View>
+        <Brand />
+        <Hero />
+        <FeatureList />
+        <SignInSection handleGoogleSignIn={handleGoogleSignIn} loading={loading} />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const Brand = () => {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  return (
+    <View style={styles.brand}>
+      <View style={styles.brandMark}>
+        <View style={styles.markLineLong} />
+        <View style={styles.markLineShort} />
+        <View style={styles.markLineLong} />
+      </View>
+      <View style={styles.brandCopy}>
+        <Text style={styles.brandName}>MONEY TRACKER</Text>
+        <Text style={styles.brandLabel}>PERSONAL FINANCE</Text>
+      </View>
+    </View>
+  );
+};
+
+const Hero = () => {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  return (
+    <View style={styles.hero}>
+      <Text style={styles.eyebrow}>KNOW WHERE IT GOES</Text>
+      <Text style={styles.title}>Big amount in.{'\n'}Small amounts out.</Text>
+      <Text style={styles.subtitle}>Break any lump sum into items. Track each one.</Text>
+      <View style={styles.accentRule}>
+        <View style={styles.accentPrimary} />
+        <View style={styles.accentSecondary} />
+      </View>
+    </View>
+  );
+};
+
+const FeatureList = () => {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  return (
+    <View style={styles.featureList}>
+      <FeatureRow
+        title="Break it down"
+        body="One big amount, small named items."
+        mark={
+          <>
+            <View style={[styles.featureBar, styles.featureBarFull]} />
+            <View style={[styles.featureBar, styles.featureBarMid]} />
+            <View style={[styles.featureBar, styles.featureBarSmall]} />
+          </>
+        }
+      />
+      <FeatureRow
+        title="Paid or pending"
+        body="Always know what’s left."
+        mark={
+          <View style={styles.featureCheckWrap}>
+            <Text style={styles.featureCheck}>✓</Text>
+          </View>
+        }
+      />
+      <FeatureRow
+        title="Pay via UPI"
+        body="Pay in your UPI app. Confirm here."
+        mark={<Text style={styles.featureRupee}>₹</Text>}
+      />
+    </View>
+  );
+};
+
+const FeatureRow = ({ title, body, mark }: { title: string; body: string; mark: React.ReactNode }) => {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  return (
+    <View style={styles.featureRow}>
+      <View style={styles.featureMark}>{mark}</View>
+      <View style={styles.featureCopy}>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureBody}>{body}</Text>
+      </View>
+    </View>
+  );
+};
+
+const SignInSection = ({ handleGoogleSignIn, loading }: { handleGoogleSignIn: () => void; loading: boolean }) => {
+  const theme = useMoneyTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  return (
+    <View style={styles.signIn}>
+      <View style={styles.divider} />
+      <Text style={styles.welcome}>Start tracking</Text>
+      <Text style={styles.instruction}>Sign in. Sync everywhere.</Text>
+      <Pressable
+        style={({ pressed }) => [styles.googleButton, pressed && !loading && styles.googleButtonPressed]}
+        onPress={handleGoogleSignIn}
+        disabled={loading}
+        accessibilityRole="button"
+      >
+        <Text style={styles.googleMark}>G</Text>
+        <Text style={styles.googleButtonText}>{loading ? 'Preparing...' : 'Continue with Google'}</Text>
+        <Text style={styles.buttonArrow}>›</Text>
+      </Pressable>
+      <Text style={styles.securityNote}>SECURE SIGN-IN  /  GOOGLE</Text>
+    </View>
+  );
+};
 
 const makeStyles = (theme: MoneyThemeColors) => StyleSheet.create({
   screen: {

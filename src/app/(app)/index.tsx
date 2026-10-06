@@ -5,7 +5,7 @@ import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -139,80 +139,86 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.eyebrow}>Welcome back</Text>
-            <Text style={styles.title}>{user?.displayName ?? 'Money Tracker'}</Text>
-          </View>
-          <Pressable style={styles.profileButton} onPress={() => router.push('/(app)/profile')}>
-            <Text style={styles.profileText}>{user?.displayName?.slice(0, 1).toUpperCase() ?? 'M'}</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.toolbar}>
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search notes"
-            placeholderTextColor={theme.quiet}
-            style={styles.searchInput}
+      <FlatList
+        data={filteredNotes}
+        keyExtractor={(note) => note.id}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        renderItem={({ item: note }) => (
+          <NoteCard
+            note={note}
+            entries={entries}
+            onPress={() => handleNotePress(note.id)}
+            onLongPress={() => startNoteSelection(note.id)}
+            selected={selectedNoteIds.has(note.id)}
+            selectionMode={selectionMode}
+            onEdit={() => handleEditNote(note.id, note.title)}
+            onClone={() => handleCloneNote(note.id)}
+            onDelete={() => handleDeleteNote(note.id)}
           />
-          <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
-            <Text style={styles.primaryText}>+ New</Text>
-          </Pressable>
-        </View>
-
-        {selectionMode && (
-          <View style={styles.selectionToolbar}>
-            <Text style={styles.selectionCount}>{selectedNoteIds.size} selected</Text>
-            <Pressable onPress={() => setSelectedNoteIds(new Set())} disabled={isDeletingSelected}>
-              <Text style={styles.cancelSelectionText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.deleteSelectedButton, isDeletingSelected && styles.deleteSelectedButtonDisabled]}
-              onPress={handleDeleteSelected}
-              disabled={isDeletingSelected}>
-              <Text style={styles.deleteSelectedText}>{isDeletingSelected ? 'Deleting…' : 'Delete'}</Text>
-            </Pressable>
-          </View>
         )}
+        ListHeaderComponent={
+          <>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.eyebrow}>Welcome back</Text>
+                <Text style={styles.title}>{user?.displayName ?? 'Money Tracker'}</Text>
+              </View>
+              <Pressable style={styles.profileButton} onPress={() => router.push('/(app)/profile')}>
+                <Text style={styles.profileText}>{user?.displayName?.slice(0, 1).toUpperCase() ?? 'M'}</Text>
+              </Pressable>
+            </View>
 
-        {filteredNotes.length === 0 ? (
+            <View style={styles.toolbar}>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search notes"
+                placeholderTextColor={theme.quiet}
+                style={styles.searchInput}
+              />
+              <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
+                <Text style={styles.primaryText}>+ New</Text>
+              </Pressable>
+            </View>
+
+            {selectionMode && (
+              <View style={styles.selectionToolbar}>
+                <Text style={styles.selectionCount}>{selectedNoteIds.size} selected</Text>
+                <Pressable onPress={() => setSelectedNoteIds(new Set())} disabled={isDeletingSelected}>
+                  <Text style={styles.cancelSelectionText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.deleteSelectedButton, isDeletingSelected && styles.deleteSelectedButtonDisabled]}
+                  onPress={handleDeleteSelected}
+                  disabled={isDeletingSelected}>
+                  <Text style={styles.deleteSelectedText}>{isDeletingSelected ? 'Deleting…' : 'Delete'}</Text>
+                </Pressable>
+              </View>
+            )}
+          </>
+        }
+        ListEmptyComponent={
           initialSyncing && !hasSearchQuery ? (
             <View style={styles.emptyState}>
               <SyncLoader />
             </View>
           ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>{hasSearchQuery ? 'No search results' : 'No notes yet'}</Text>
-            {!hasSearchQuery && (
-              <>
-                <Text style={styles.emptyBody}>Create your first note to track monthly expenses, recurring bills, or investment goals.</Text>
-                <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
-                  <Text style={styles.primaryText}>Create note</Text>
-                </Pressable>
-              </>
-            )}
-          </View>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>{hasSearchQuery ? 'No search results' : 'No notes yet'}</Text>
+              {!hasSearchQuery && (
+                <>
+                  <Text style={styles.emptyBody}>Create your first note to track monthly expenses, recurring bills, or investment goals.</Text>
+                  <Pressable style={styles.primaryButton} onPress={handleCreateNote}>
+                    <Text style={styles.primaryText}>Create note</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           )
-        ) : (
-          filteredNotes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              entries={entries}
-              onPress={() => handleNotePress(note.id)}
-              onLongPress={() => startNoteSelection(note.id)}
-              selected={selectedNoteIds.has(note.id)}
-              selectionMode={selectionMode}
-              onEdit={() => handleEditNote(note.id, note.title)}
-              onClone={() => handleCloneNote(note.id)}
-              onDelete={() => handleDeleteNote(note.id)}
-            />
-          ))
-        )}
-      </ScrollView>
+        }
+      />
 
       <NoteComposer
         visible={isComposerOpen}

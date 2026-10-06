@@ -8,7 +8,7 @@ import { detectInstalledUpiApps, openUpiPayment, openUpiPaymentWithApp, UpiApp }
 import { MoneyEntry } from '@/types/finance';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NoteDetailScreen() {
@@ -268,81 +268,87 @@ export default function NoteDetailScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       <Stack.Screen options={{ title: note.title }} />
-      <ScrollView contentContainerStyle={styles.container}>
-        {noteEntries.length !== 0 && (
-          <View style={styles.summarySection}>
-          <View style={styles.summaryTotalRow}>
-            <View>
-              <Text style={styles.summaryLabel}>Total tracked</Text>
-              <Text style={styles.summaryCount}>{noteEntries.length} items</Text>
-            </View>
-            <Text style={styles.summaryTotal}>{formatCurrency(summary?.totalPaise ?? 0)}</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryMetrics}>
-            {[
-              { label: 'Paid', amountPaise: summary?.paidPaise ?? 0, color: theme.paid },
-              { label: 'Pending', amountPaise: summary?.pendingPaise ?? 0, color: theme.pending },
-            ].map((metric, index) => (
-              <View key={metric.label} style={[styles.summaryMetric, index > 0 && styles.summaryMetricSeparated]}>
-                <Text style={styles.summaryMetricLabel}>{metric.label}</Text>
-                <Text style={[styles.summaryMetricValue, { color: metric.color }]}>{formatCurrency(metric.amountPaise)}</Text>
+      <FlatList
+        data={noteEntries}
+        keyExtractor={(entry) => entry.id}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={15}
+        renderItem={({ item: entry }) => (
+          <EntryItem
+            entry={entry}
+            onEdit={() => handleEditEntry(entry)}
+            onDelete={() => handleDeleteEntry(entry.id)}
+            onClone={() => handleCloneEntry(entry)}
+            onPay={() => handlePay(entry)}
+            onMarkPaid={() => handleMarkPaid(entry)}
+            onMarkPending={() => handleMarkPending(entry)}
+            onPress={() => handleEntryPress(entry)}
+            onLongPress={() => startEntrySelection(entry.id)}
+            selected={selectedEntryIds.has(entry.id)}
+            selectionMode={selectionMode}
+          />
+        )}
+        ListHeaderComponent={
+          <>
+            {noteEntries.length !== 0 && (
+              <View style={styles.summarySection}>
+                <View style={styles.summaryTotalRow}>
+                  <View>
+                    <Text style={styles.summaryLabel}>Total tracked</Text>
+                    <Text style={styles.summaryCount}>{noteEntries.length} items</Text>
+                  </View>
+                  <Text style={styles.summaryTotal}>{formatCurrency(summary?.totalPaise ?? 0)}</Text>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryMetrics}>
+                  {[
+                    { label: 'Paid', amountPaise: summary?.paidPaise ?? 0, color: theme.paid },
+                    { label: 'Pending', amountPaise: summary?.pendingPaise ?? 0, color: theme.pending },
+                  ].map((metric, index) => (
+                    <View key={metric.label} style={[styles.summaryMetric, index > 0 && styles.summaryMetricSeparated]}>
+                      <Text style={styles.summaryMetricLabel}>{metric.label}</Text>
+                      <Text style={[styles.summaryMetricValue, { color: metric.color }]}>{formatCurrency(metric.amountPaise)}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            ))}
-          </View>
-        </View>
-        )}
+            )}
 
-        {selectionMode && (
-          <View style={styles.selectionToolbar}>
-            <Text style={styles.selectionCount}>{selectedEntryIds.size} selected</Text>
-            <Pressable onPress={() => setSelectedEntryIds(new Set())} disabled={isApplyingBulk}>
-              <Text style={styles.cancelSelectionText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.bulkPaidButton, isApplyingBulk && styles.bulkButtonDisabled]}
-              onPress={() => handleBulkSetPaidStatus(true)}
-              disabled={isApplyingBulk}>
-              <Text style={styles.bulkPaidText}>Mark paid</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.bulkPendingButton, isApplyingBulk && styles.bulkButtonDisabled]}
-              onPress={() => handleBulkSetPaidStatus(false)}
-              disabled={isApplyingBulk}>
-              <Text style={styles.bulkPendingText}>Mark pending</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.bulkDeleteButton, isApplyingBulk && styles.bulkButtonDisabled]}
-              onPress={handleDeleteSelectedEntries}
-              disabled={isApplyingBulk}>
-              <Text style={styles.bulkDeleteText}>{isApplyingBulk ? 'Working…' : 'Delete'}</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {noteEntries.length === 0 ? (
+            {selectionMode && (
+              <View style={styles.selectionToolbar}>
+                <Text style={styles.selectionCount}>{selectedEntryIds.size} selected</Text>
+                <Pressable onPress={() => setSelectedEntryIds(new Set())} disabled={isApplyingBulk}>
+                  <Text style={styles.cancelSelectionText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkPaidButton, isApplyingBulk && styles.bulkButtonDisabled]}
+                  onPress={() => handleBulkSetPaidStatus(true)}
+                  disabled={isApplyingBulk}>
+                  <Text style={styles.bulkPaidText}>Mark paid</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkPendingButton, isApplyingBulk && styles.bulkButtonDisabled]}
+                  onPress={() => handleBulkSetPaidStatus(false)}
+                  disabled={isApplyingBulk}>
+                  <Text style={styles.bulkPendingText}>Mark pending</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkDeleteButton, isApplyingBulk && styles.bulkButtonDisabled]}
+                  onPress={handleDeleteSelectedEntries}
+                  disabled={isApplyingBulk}>
+                  <Text style={styles.bulkDeleteText}>{isApplyingBulk ? 'Working…' : 'Delete'}</Text>
+                </Pressable>
+              </View>
+            )}
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No entries in this note yet</Text>
           </View>
-        ) : (
-          noteEntries.map((entry) => (
-            <EntryItem
-              key={entry.id}
-              entry={entry}
-              onEdit={() => handleEditEntry(entry)}
-              onDelete={() => handleDeleteEntry(entry.id)}
-              onClone={() => handleCloneEntry(entry)}
-              onPay={() => handlePay(entry)}
-              onMarkPaid={() => handleMarkPaid(entry)}
-              onMarkPending={() => handleMarkPending(entry)}
-              onPress={() => handleEntryPress(entry)}
-              onLongPress={() => startEntrySelection(entry.id)}
-              selected={selectedEntryIds.has(entry.id)}
-              selectionMode={selectionMode}
-            />
-          ))
-        )}
-      </ScrollView>
+        }
+      />
 
       <Pressable
         style={styles.floatingButton}
