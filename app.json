@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.aswin.moneytracker"
+      "bundleIdentifier": "com.aswin.moneytracker",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["upi", "gpay", "phonepe", "paytm", "bhim", "amazonpay"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,6 +30,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-upi-app-queries.ts",
       [
         "expo-splash-screen",
         {

@@ -1,11 +1,12 @@
 import { AnimatedModal } from '@/components/animated-modal';
 import { EntryItem } from '@/components/entry-item';
+import { UpiAppPicker } from '@/components/upi-app-picker';
 import { MoneyThemeColors, useMoneyTheme } from '@/constants/money-theme';
 import { useAppData } from '@/context/app-context';
 import { formatCurrency, getNoteSummary, sortEntries, toPaise } from '@/lib/finance';
-import { openUpiPayment } from '@/lib/upi';
+import { detectInstalledUpiApps, openUpiPayment, openUpiPaymentWithApp, UpiApp } from '@/lib/upi';
 import { MoneyEntry } from '@/types/finance';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +27,9 @@ export default function NoteDetailScreen() {
   const [isApplyingBulk, setApplyingBulk] = useState(false);
   const entryTitleInputRef = useRef<TextInput>(null);
   const selectionMode = selectedEntryIds.size > 0;
+  const [payingEntry, setPayingEntry] = useState<MoneyEntry | null>(null);
+  const [upiApps, setUpiApps] = useState<UpiApp[]>([]);
+  const [detectingApps, setDetectingApps] = useState(false);
 
   useEffect(() => {
     if (!isFormOpen) return;
@@ -133,12 +137,32 @@ export default function NoteDetailScreen() {
       return;
     }
 
+    setPayingEntry(entry);
+    setDetectingApps(true);
+    const installed = await detectInstalledUpiApps();
+    setUpiApps(installed);
+    setDetectingApps(false);
+  };
+
+  const launchGenericUpi = async (entry: MoneyEntry) => {
     const didOpen = await openUpiPayment(entry, note?.title ?? 'Money Tracker');
     if (!didOpen) {
-      Alert.alert('Could not open payment app', 'Check that Google Pay or another UPI app is installed. The payment remains pending.');
+      Alert.alert('No UPI app found', 'Install a UPI app like Google Pay, PhonePe, or Paytm to make this payment. The entry remains pending.');
       return;
     }
+    setPayingEntry(null);
+    router.push({ pathname: '/(app)/payment-confirm', params: { entryId: entry.id, returnTo: 'note' } });
+  };
 
+  const handlePickUpiApp = async (app: UpiApp) => {
+    if (!payingEntry) return;
+    const didOpen = await openUpiPaymentWithApp(payingEntry, note?.title ?? 'Money Tracker', app);
+    if (!didOpen) {
+      Alert.alert('Could not open app', `${app.name} did not respond. Try another UPI app.`);
+      return;
+    }
+    const entry = payingEntry;
+    setPayingEntry(null);
     router.push({ pathname: '/(app)/payment-confirm', params: { entryId: entry.id, returnTo: 'note' } });
   };
 
@@ -245,7 +269,8 @@ export default function NoteDetailScreen() {
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       <Stack.Screen options={{ title: note.title }} />
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.summarySection}>
+        {noteEntries.length !== 0 && (
+          <View style={styles.summarySection}>
           <View style={styles.summaryTotalRow}>
             <View>
               <Text style={styles.summaryLabel}>Total tracked</Text>
@@ -266,6 +291,7 @@ export default function NoteDetailScreen() {
             ))}
           </View>
         </View>
+        )}
 
         {selectionMode && (
           <View style={styles.selectionToolbar}>
@@ -366,6 +392,17 @@ export default function NoteDetailScreen() {
           </View>
         </ScrollView>
       </AnimatedModal>
+
+      <UpiAppPicker
+        visible={payingEntry !== null}
+        apps={upiApps}
+        loading={detectingApps}
+        onSelect={handlePickUpiApp}
+        onSelectGeneric={() => {
+          if (payingEntry) void launchGenericUpi(payingEntry);
+        }}
+        onClose={() => setPayingEntry(null)}
+      />
     </SafeAreaView>
   );
 }
