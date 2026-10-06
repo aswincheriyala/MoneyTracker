@@ -11,13 +11,22 @@ interface EntryItemProps {
   onPay?: () => void;
   onMarkPaid?: () => void;
   onMarkPending?: () => void;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  selected?: boolean;
+  selectionMode?: boolean;
 }
 
-export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid, onMarkPending }: EntryItemProps) {
+export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid, onMarkPending, onPress, onLongPress, selected = false, selectionMode = false }: EntryItemProps) {
   const isPaid = entry.status === 'PAID';
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={[styles.card, selected && styles.selectedCard]}>
       <View style={styles.headerRow}>
         <View style={styles.textWrap}>
           <Text style={[styles.title, isPaid && styles.paidText]}>{entry.title}</Text>
@@ -29,12 +38,20 @@ export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid,
         <Text style={styles.meta} numberOfLines={1}>
           {entry.recipientUpiId ? `UPI: ${entry.recipientUpiId}` : 'No recipient'}
         </Text>
-        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(entry.status)}22` }]}> 
-          <Text style={[styles.statusText, { color: getStatusColor(entry.status) }]}>{entry.status}</Text>
+        <View style={styles.metaBadges}>
+          <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(entry.status)}22` }]}> 
+            <Text style={[styles.statusText, { color: getStatusColor(entry.status) }]}>{entry.status}</Text>
+          </View>
+          {selectionMode ? (
+            <View style={[styles.selectionIndicator, selected && styles.selectionIndicatorSelected]}>
+              {selected ? <Text style={styles.selectionCheck}>✓</Text> : null}
+            </View>
+          ) : null}
         </View>
       </View>
 
-      <View style={styles.actionRow}>
+      {!selectionMode && (
+        <View style={styles.actionRow}>
         <Text style={styles.link} onPress={onEdit}>Edit</Text>
         <Text style={styles.link} onPress={onClone}>Clone</Text>
         <Text style={styles.link} onPress={onDelete}>Delete</Text>
@@ -59,8 +76,9 @@ export function EntryItem({ entry, onEdit, onDelete, onClone, onPay, onMarkPaid,
             </Pressable>
           </View>
         ) : null}
-      </View>
-    </View>
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -72,6 +90,33 @@ const styles = StyleSheet.create({
     borderColor: MoneyTheme.line,
     padding: 12,
     marginBottom: 8,
+  },
+  selectedCard: {
+    borderColor: MoneyTheme.pine,
+    backgroundColor: MoneyTheme.surfaceSoft,
+  },
+  metaBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectionIndicator: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: MoneyTheme.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectionIndicatorSelected: {
+    backgroundColor: MoneyTheme.pine,
+    borderColor: MoneyTheme.pine,
+  },
+  selectionCheck: {
+    color: MoneyTheme.surface,
+    fontSize: 13,
+    fontWeight: '700',
   },
   headerRow: {
     flexDirection: 'row',

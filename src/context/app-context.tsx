@@ -205,8 +205,10 @@ interface AppContextValue {
   createEntry: (entry: Omit<MoneyEntry, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<MoneyEntry>;
   updateEntry: (entryId: string, changes: Partial<MoneyEntry>) => Promise<void>;
   deleteEntry: (entryId: string) => Promise<void>;
+  deleteEntries: (entryIds: string[]) => Promise<void>;
   cloneEntry: (entryId: string) => Promise<MoneyEntry>;
   togglePaidStatus: (entryId: string, confirmed: boolean, paymentReference?: string) => Promise<void>;
+  setEntriesPaidStatus: (entryIds: string[], confirmed: boolean) => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   syncData: () => Promise<void>;
@@ -491,19 +493,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [saveLocalData, user]);
 
-  const deleteEntry = useCallback(async (entryId: string) => {
+  const deleteEntries = useCallback(async (entryIds: string[]) => {
     if (!user) {
       throw new Error('Sign in to continue.');
     }
+    const selectedIds = new Set(entryIds);
+    if (selectedIds.size === 0) return;
     const current = dataRef.current;
-    if (!current.entries.some((entry) => entry.id === entryId)) throw new Error('Entry not found.');
-    const change: PendingChange = { id: makeId(), kind: 'delete-entry', entryId, deletedAt: new Date().toISOString() };
+    const removedEntries = current.entries.filter((entry) => selectedIds.has(entry.id));
+    if (removedEntries.length !== selectedIds.size) throw new Error('One or more entries could not be found.');
+    const timestamp = new Date().toISOString();
+    const changes: PendingChange[] = removedEntries.map((entry) => ({ id: makeId(), kind: 'delete-entry', entryId: entry.id, deletedAt: timestamp }));
     await saveLocalData({
       ...current,
-      entries: current.entries.filter((entry) => entry.id !== entryId),
-      changes: [...current.changes, change],
+      entries: current.entries.filter((entry) => !selectedIds.has(entry.id)),
+      changes: [...current.changes, ...changes],
     });
   }, [saveLocalData, user]);
+
+  const deleteEntry = useCallback(async (entryId: string) => {
+    await deleteEntries([entryId]);
+  }, [deleteEntries]);
 
   const cloneEntry = useCallback(async (entryId: string) => {
     const original = dataRef.current.entries.find((entry) => entry.id === entryId);
@@ -554,6 +564,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...current,
       entries: current.entries.map((entry) => entry.id === entryId ? updatedEntry : entry),
       changes: [...current.changes, { id: makeId(), kind: 'upsert-entry', entry: updatedEntry }],
+    });
+  }, [saveLocalData]);
+
+  const setEntriesPaidStatus = useCallback(async (entryIds: string[], confirmed: boolean) => {
+    const selectedIds = new Set(entryIds);
+    if (selectedIds.size === 0) return;
+    const current = dataRef.current;
+    const selectedEntries = current.entries.filter((entry) => selectedIds.has(entry.id));
+    if (selectedEntries.length !== selectedIds.size) throw new Error('One or more entries could not be found.');
+    const updatedAt = new Date().toISOString();
+    const nextStatus: EntryStatus = confirmed ? 'PAID' : 'PENDING';
+    const updatedEntries = selectedEntries.map((entry): MoneyEntry => ({
+      ...entry,
+      status: nextStatus,
+      paidAt: confirmed ? updatedAt : undefined,
+      paymentReference: confirmed ? entry.paymentReference : undefined,
+      updatedAt,
+    }));
+    const updatedEntryMap = new Map(updatedEntries.map((entry) => [entry.id, entry]));
+    await saveLocalData({
+      ...current,
+      entries: current.entries.map((entry) => updatedEntryMap.get(entry.id) ?? entry),
+      changes: [...current.changes, ...updatedEntries.map((entry) => ({ id: makeId(), kind: 'upsert-entry' as const, entry }))],
     });
   }, [saveLocalData]);
 
@@ -614,13 +647,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createEntry,
       updateEntry,
       deleteEntry,
+      deleteEntries,
       cloneEntry,
+      setEntriesPaidStatus,
       togglePaidStatus,
       signIn,
       signOut,
       syncData,
     }),
-    [createEntry, createNote, cloneEntry, cloneNote, deleteEntry, deleteNote, deleteNotes, entries, lastSyncedAt, loading, notes, pendingChangeCount, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
+    [createEntry, createNote, cloneEntry, cloneNote, deleteEntries, deleteEntry, deleteNote, deleteNotes, entries, lastSyncedAt, loading, notes, pendingChangeCount, setEntriesPaidStatus, signIn, signOut, syncData, syncing, togglePaidStatus, updateEntry, updateNote, user],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

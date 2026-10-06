@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { notes, entries, createEntry, updateEntry, deleteEntry, togglePaidStatus } = useAppData();
+  const { notes, entries, createEntry, updateEntry, deleteEntry, deleteEntries, setEntriesPaidStatus, togglePaidStatus } = useAppData();
   const note = notes.find((item) => item.id === id);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
@@ -19,7 +19,10 @@ export default function NoteDetailScreen() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<'create' | 'edit' | 'clone'>('create');
   const [isFormOpen, setFormOpen] = useState(false);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(() => new Set());
+  const [isApplyingBulk, setApplyingBulk] = useState(false);
   const entryTitleInputRef = useRef<TextInput>(null);
+  const selectionMode = selectedEntryIds.size > 0;
 
   const noteEntries = useMemo(() => sortEntries(entries.filter((entry) => entry.noteId === id), 'created'), [entries, id]);
   const summary = useMemo(() => note ? getNoteSummary(note, entries) : null, [entries, note]);
@@ -166,6 +169,61 @@ export default function NoteDetailScreen() {
     // ]);
   };
 
+  const toggleEntrySelection = (entryId: string) => {
+    setSelectedEntryIds((current) => {
+      const next = new Set(current);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      return next;
+    });
+  };
+
+  const startEntrySelection = (entryId: string) => {
+    setSelectedEntryIds((current) => new Set(current).add(entryId));
+  };
+
+  const handleEntryPress = (entry: MoneyEntry) => {
+    if (selectionMode) toggleEntrySelection(entry.id);
+  };
+
+  const handleBulkSetPaidStatus = async (confirmed: boolean) => {
+    const entryIds = [...selectedEntryIds];
+    if (entryIds.length === 0 || isApplyingBulk) return;
+    setApplyingBulk(true);
+    try {
+      await setEntriesPaidStatus(entryIds, confirmed);
+      setSelectedEntryIds(new Set());
+    } catch (error) {
+      Alert.alert('Update failed', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setApplyingBulk(false);
+    }
+  };
+
+  const handleDeleteSelectedEntries = () => {
+    const entryIds = [...selectedEntryIds];
+    if (entryIds.length === 0 || isApplyingBulk) return;
+
+    Alert.alert('Delete selected entries?', `Delete ${entryIds.length} entries? This action cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setApplyingBulk(true);
+          try {
+            await deleteEntries(entryIds);
+            setSelectedEntryIds(new Set());
+          } catch (error) {
+            Alert.alert('Delete failed', error instanceof Error ? error.message : 'Unknown error');
+          } finally {
+            setApplyingBulk(false);
+          }
+        },
+      },
+    ]);
+  };
+
   if (!note) {
     return (
       <View style={styles.emptyState}>
@@ -200,6 +258,33 @@ export default function NoteDetailScreen() {
           </View>
         </View>
 
+        {selectionMode && (
+          <View style={styles.selectionToolbar}>
+            <Text style={styles.selectionCount}>{selectedEntryIds.size} selected</Text>
+            <Pressable onPress={() => setSelectedEntryIds(new Set())} disabled={isApplyingBulk}>
+              <Text style={styles.cancelSelectionText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.bulkPaidButton, isApplyingBulk && styles.bulkButtonDisabled]}
+              onPress={() => handleBulkSetPaidStatus(true)}
+              disabled={isApplyingBulk}>
+              <Text style={styles.bulkPaidText}>Mark paid</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.bulkPendingButton, isApplyingBulk && styles.bulkButtonDisabled]}
+              onPress={() => handleBulkSetPaidStatus(false)}
+              disabled={isApplyingBulk}>
+              <Text style={styles.bulkPendingText}>Mark pending</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.bulkDeleteButton, isApplyingBulk && styles.bulkButtonDisabled]}
+              onPress={handleDeleteSelectedEntries}
+              disabled={isApplyingBulk}>
+              <Text style={styles.bulkDeleteText}>{isApplyingBulk ? 'Working…' : 'Delete'}</Text>
+            </Pressable>
+          </View>
+        )}
+
         {noteEntries.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No entries in this note yet</Text>
@@ -215,6 +300,10 @@ export default function NoteDetailScreen() {
               onPay={() => handlePay(entry)}
               onMarkPaid={() => handleMarkPaid(entry)}
               onMarkPending={() => handleMarkPending(entry)}
+              onPress={() => handleEntryPress(entry)}
+              onLongPress={() => startEntrySelection(entry.id)}
+              selected={selectedEntryIds.has(entry.id)}
+              selectionMode={selectionMode}
             />
           ))
         )}
@@ -472,6 +561,65 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: MoneyTheme.ink,
     fontWeight: '700',
+  },
+  selectionToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+    padding: 12,
+    backgroundColor: MoneyTheme.surface,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+    borderRadius: 6,
+  },
+  selectionCount: {
+    flex: 1,
+    color: MoneyTheme.ink,
+    fontWeight: '700',
+  },
+  cancelSelectionText: {
+    color: MoneyTheme.muted,
+    fontWeight: '600',
+    paddingVertical: 8,
+  },
+  bulkPaidButton: {
+    backgroundColor: MoneyTheme.paid,
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  bulkPaidText: {
+    color: MoneyTheme.surface,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  bulkPendingButton: {
+    backgroundColor: MoneyTheme.surfaceSoft,
+    borderWidth: 1,
+    borderColor: MoneyTheme.line,
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  bulkPendingText: {
+    color: MoneyTheme.ink,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  bulkDeleteButton: {
+    backgroundColor: MoneyTheme.danger,
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  bulkDeleteText: {
+    color: MoneyTheme.surface,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  bulkButtonDisabled: {
+    opacity: 0.55,
   },
   emptyState: {
     backgroundColor: MoneyTheme.surface,
