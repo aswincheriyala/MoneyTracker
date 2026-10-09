@@ -22,10 +22,7 @@ export interface MoneyEntry {
   noteId: string;
   title: string;
   amountPaise: number;
-  category?: string;
   recipientUpiId?: string;
-  dueDate?: string;
-  description?: string;
   status: EntryStatus;
   paidAt?: string;
   paymentReference?: string;

@@ -1,4 +1,5 @@
-import { ConfigPlugin, withAndroidManifest } from '@expo/config-plugins';
+import type { ConfigPlugin } from '@expo/config-plugins';
+import { withAndroidManifest } from '@expo/config-plugins';
 
 const UPI_PACKAGES = [
   'com.google.android.apps.nbu.paisa.user', // Google Pay

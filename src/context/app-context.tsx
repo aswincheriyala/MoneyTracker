@@ -21,10 +21,7 @@ type SupabaseEntry = {
   note_id: string;
   title: string;
   amount_paise: number | string;
-  category: string | null;
   recipient_upi_id: string | null;
-  due_date: string | null;
-  description: string | null;
   status: EntryStatus;
   paid_at: string | null;
   payment_reference: string | null;
@@ -71,10 +68,7 @@ function entryToSupabase(entry: MoneyEntry) {
     note_id: entry.noteId,
     title: entry.title,
     amount_paise: entry.amountPaise,
-    category: entry.category ?? null,
     recipient_upi_id: entry.recipientUpiId ?? null,
-    due_date: entry.dueDate ?? null,
-    description: entry.description ?? null,
     status: entry.status,
     paid_at: entry.paidAt ?? null,
     payment_reference: entry.paymentReference ?? null,
@@ -177,10 +171,7 @@ function mapSupabaseEntry(entry: SupabaseEntry): MoneyEntry {
     noteId: entry.note_id,
     title: entry.title,
     amountPaise: Number(entry.amount_paise),
-    category: entry.category ?? undefined,
     recipientUpiId: entry.recipient_upi_id ?? undefined,
-    dueDate: entry.due_date ?? undefined,
-    description: entry.description ?? undefined,
     status: entry.status,
     paidAt: entry.paid_at ?? undefined,
     paymentReference: entry.payment_reference ?? undefined,
